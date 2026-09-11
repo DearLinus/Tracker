@@ -7,6 +7,8 @@ import json
 import urllib.request
 import subprocess
 import os
+import sys
+import tempfile
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -16,8 +18,8 @@ import matplotlib.dates as mdates
 
 class DailyTrackerGUI:
     
-    GITHUB_OWNER = "YOUR_GITHUB_USERNAME"
-    GITHUB_REPO = "YOUR_REPOSITORY_NAME"
+    GITHUB_OWNER = "DearLinus"
+    GITHUB_REPO = "Tracker"
 
     GITHUB_API_URL = (
         f"https://api.github.com/repos/"
@@ -241,7 +243,7 @@ class DailyTrackerGUI:
 
         tk.Label(
             update_card,
-            text=f"Current version: {self.APP_VERSION}",
+            text=f"Current version: {APP_VERSION}",
             bg=self.card_bg, fg=self.secondary_text,
             font=("DejaVu Sans", 10)
         ).pack(anchor="w", padx=24, pady=(0, 14))
@@ -252,10 +254,21 @@ class DailyTrackerGUI:
         )
         self.update_status_label.pack(anchor="w", padx=24, pady=(0, 14))
 
+        update_buttons = tk.Frame(update_card, bg=self.card_bg)
+        update_buttons.pack(anchor="w", padx=24, pady=(0, 22))
+
         ttk.Button(
-            update_card, text="Check for Updates", style="Accent.TButton",
+            update_buttons, text="Check for Updates", style="Accent.TButton",
             command=self.check_for_updates
-        ).pack(anchor="w", padx=24, pady=(0, 22))
+        ).pack(side="left")
+
+        self.update_now_button = ttk.Button(
+            update_buttons, text="Update Now", style="Accent.TButton",
+            command=self.start_update, state="disabled"
+        )
+        self.update_now_button.pack(side="left", padx=(10, 0))
+
+        self.available_update = None
 
         info = tk.Frame(
             self.content, bg=self.card_bg,
@@ -273,58 +286,190 @@ class DailyTrackerGUI:
             font=("DejaVu Sans", 9)
         ).pack(anchor="w", padx=24, pady=(0, 18))
 
-def check_for_updates(self):
-    self.update_status_label.config(
-        text="Checking for updates...",
-        fg=self.secondary_text
-    )
-    self.root.update_idletasks()
-
-    try:
-        request = urllib.request.Request(
-            self.GITHUB_API_URL,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "User-Agent": "DailyTracker"
-            }
+    def check_for_updates(self):
+        self.update_status_label.config(
+            text="Checking for updates...",
+            fg=self.secondary_text
         )
+        self.root.update_idletasks()
 
-        with urllib.request.urlopen(request, timeout=10) as response:
-            payload = json.loads(
-                response.read().decode("utf-8")
+        try:
+            request = urllib.request.Request(
+                self.GITHUB_API_URL,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": "DailyTracker"
+                }
             )
 
-        latest_version = payload["tag_name"].lstrip("v")
-        release_name = payload.get("name", "")
-        release_notes = payload.get("body", "")
-        release_page = payload.get("html_url", "")
+            with urllib.request.urlopen(request, timeout=10) as response:
+                payload = json.loads(
+                    response.read().decode("utf-8")
+                )
 
-        if self.compare_versions(latest_version, APP_VERSION) > 0:
-            message = f"New version available: {latest_version}"
+            latest_version = payload["tag_name"].lstrip("v")
+            release_name = payload.get("name", "")
+            release_notes = payload.get("body", "")
+            release_page = payload.get("html_url", "")
 
-            if release_name:
-                message += f"\n\n{release_name}"
+            download_url = None
+            expected_sha256 = None
 
-            if release_notes:
-                message += f"\n\n{release_notes}"
+            for asset in payload.get("assets", []):
+                if asset.get("name") == f"DailyTracker-v{latest_version}.zip":
+                    download_url = asset.get("browser_download_url")
+                    digest = asset.get("digest") or ""
+                    if digest.startswith("sha256:"):
+                        expected_sha256 = digest.split(":", 1)[1].strip().lower()
+                    break
+
+            if self.compare_versions(latest_version, APP_VERSION) > 0:
+                if not download_url:
+                    raise ValueError(
+                        "A ZIP file for this release could not be found."
+                    )
+
+                message = f"New version available: {latest_version}"
+
+                if release_name:
+                    message += f"\n\n{release_name}"
+
+                if release_notes:
+                    message += f"\n\n{release_notes}"
+
+                self.available_update = {
+                    "version": latest_version,
+                    "download_url": download_url,
+                    "sha256": expected_sha256,
+                    "release_page": release_page,
+                }
+                self.update_now_button.config(state="normal")
+
+                if expected_sha256:
+                    message += "\n\nSHA-256 verification is available for this release."
+                else:
+                    message += "\n\nWarning: this release has no SHA-256 digest in GitHub."
+
+                self.update_status_label.config(
+                    text=message,
+                    fg=self.accent
+                )
+            else:
+                self.available_update = None
+                self.update_now_button.config(state="disabled")
+                self.update_status_label.config(
+                    text="You are using the latest version.",
+                    fg="#22c55e"
+                )
+
+        except Exception as error:
+            self.available_update = None
+            self.update_now_button.config(state="disabled")
+            self.update_status_label.config(
+                text=f"Could not check for updates: {error}",
+                fg=self.danger
+            )
+
+    def start_update(self):
+        """Download the selected release and hand the replacement work to updater.py."""
+        if not self.available_update:
+            return
+
+        update = self.available_update
+        latest_version = update["version"]
+        download_url = update["download_url"]
+        expected_sha256 = update.get("sha256")
+
+        if not download_url:
+            messagebox.showerror("Update", "No download file was found for this release.")
+            return
+
+        if not expected_sha256:
+            proceed = messagebox.askyesno(
+                "Update verification",
+                "GitHub did not provide a SHA-256 digest for this release.\n\n"
+                "The ZIP will still be checked for integrity, but its authenticity "
+                "cannot be cryptographically verified.\n\nContinue?"
+            )
+            if not proceed:
+                return
+
+        self.update_now_button.config(state="disabled")
+        self.update_status_label.config(
+            text=f"Downloading version {latest_version}...\n0%",
+            fg=self.accent
+        )
+        self.root.update_idletasks()
+
+        try:
+            temp_file = tempfile.NamedTemporaryFile(
+                prefix="daily_tracker_update_",
+                suffix=".zip",
+                delete=False
+            )
+            temp_path = Path(temp_file.name)
+            temp_file.close()
+
+            request = urllib.request.Request(
+                download_url,
+                headers={
+                    "User-Agent": "DailyTracker",
+                    "Accept": "application/octet-stream",
+                }
+            )
+
+            with urllib.request.urlopen(request, timeout=30) as response, open(temp_path, "wb") as output:
+                total_size = int(response.headers.get("Content-Length") or 0)
+                downloaded = 0
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    output.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size:
+                        percent = int(downloaded * 100 / total_size)
+                        self.update_status_label.config(
+                            text=f"Downloading version {latest_version}...\n{percent}%",
+                            fg=self.accent
+                        )
+                        self.root.update_idletasks()
 
             self.update_status_label.config(
-                text=message,
+                text="Download complete. Starting updater...",
                 fg=self.accent
             )
+            self.root.update_idletasks()
 
-        else:
+            updater_path = Path(__file__).resolve().with_name("updater.py")
+            if not updater_path.exists():
+                raise FileNotFoundError(f"updater.py was not found next to the application.")
+
+            subprocess.Popen([
+                sys.executable,
+                str(updater_path),
+                "--zip", str(temp_path),
+                "--app-dir", str(Path(__file__).resolve().parent),
+                "--pid", str(os.getpid()),
+                "--expected-sha256", expected_sha256 or "",
+            ])
+
+            self.root.after(150, self.root.destroy)
+
+        except Exception as error:
+            try:
+                if 'temp_path' in locals() and temp_path.exists():
+                    temp_path.unlink()
+            except OSError:
+                pass
+
             self.update_status_label.config(
-                text="You are using the latest version.",
-                fg="#22c55e"
+                text=f"Update failed: {error}",
+                fg=self.danger
             )
+            self.update_now_button.config(state="normal")
 
-    except Exception as error:
-        self.update_status_label.config(
-            text=f"Could not check for updates: {error}",
-            fg=self.danger
-        )
-
+    @staticmethod
     def compare_versions(left, right):
         def parts(value):
             result = []

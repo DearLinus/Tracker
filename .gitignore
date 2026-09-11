@@ -1,4 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Personal application data
 tracker.db
 tracker_settings.json
-__pycache__/
-*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Release archives
+DailyTracker-*.zip
