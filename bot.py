@@ -1,7 +1,9 @@
 import os
-from datetime import date
+
+from datetime import date, datetime
 
 from telegram import Update, InputFile
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -19,7 +21,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Welcome to Daily Tracker!\n\n"
         "Commands:\n"
-        "/today - Today's record\n"
+        "/todayrec <count> - Record today's count\n"
+        "/new <date> <count> - Add a record for another date\n"
         "/stats - Statistics\n"
         "/history - Record history\n"
         "/graph - Current graph\n"
@@ -31,15 +34,109 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    today_date = date.today()
-    count = logic.get_record(today_date)
-
-    if count is None:
-        await update.message.reply_text("No record for today.")
-    else:
+async def todayrec(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) != 1:
         await update.message.reply_text(
-            f"Today ({today_date.isoformat()}): {count}"
+            "Usage: /todayrec <count>\n"
+            "Example: /todayrec 5"
+        )
+        return
+
+    try:
+        count = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text(
+            "Count must be a number."
+        )
+        return
+
+    if count < 0:
+        await update.message.reply_text(
+            "Count cannot be negative."
+        )
+        return
+
+    today_date = date.today()
+
+    try:
+        existing = logic.get_record(today_date)
+
+        if existing is None:
+            logic.add_record(today_date, count)
+            action = "recorded"
+        else:
+            logic.update_record(today_date, count)
+            action = "updated"
+
+        await update.message.reply_text(
+            f"Today's record {action}: {count}"
+        )
+
+    except Exception as error:
+        await update.message.reply_text(
+            f"Could not save today's record: {error}"
+        )
+
+
+async def new_record(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) != 2:
+        await update.message.reply_text(
+            "Usage: /new <date> <count>\n"
+            "Example: /new 2026-09-10 8"
+        )
+        return
+
+    date_text = context.args[0]
+    count_text = context.args[1]
+
+    try:
+        record_date = datetime.strptime(
+            date_text,
+            "%Y-%m-%d"
+        ).date()
+    except ValueError:
+        await update.message.reply_text(
+            "Invalid date.\n"
+            "Use YYYY-MM-DD.\n"
+            "Example: /new 2026-09-10 8"
+        )
+        return
+
+    try:
+        count = int(count_text)
+    except ValueError:
+        await update.message.reply_text(
+            "Count must be a number."
+        )
+        return
+
+    if count < 0:
+        await update.message.reply_text(
+            "Count cannot be negative."
+        )
+        return
+
+    try:
+        existing = logic.get_record(record_date)
+
+        if existing is not None:
+            await update.message.reply_text(
+                f"A record already exists for "
+                f"{record_date.isoformat()}: {existing}\n\n"
+                "Use /todayrec for today's record."
+            )
+            return
+
+        logic.add_record(record_date, count)
+
+        await update.message.reply_text(
+            f"Record added:\n"
+            f"{record_date.isoformat()}: {count}"
+        )
+
+    except Exception as error:
+        await update.message.reply_text(
+            f"Could not save the record: {error}"
         )
 
 
@@ -129,15 +226,34 @@ def main():
 
     app = Application.builder().token(token).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("today", today))
-    app.add_handler(CommandHandler("stats", stats))
-    app.add_handler(CommandHandler("history", history))
-    app.add_handler(CommandHandler("graph", graph))
+    app.add_handler(
+        CommandHandler("start", start)
+    )
+
+    app.add_handler(
+        CommandHandler("todayrec", todayrec)
+    )
+
+    app.add_handler(
+        CommandHandler("new", new_record)
+    )
+
+    app.add_handler(
+        CommandHandler("stats", stats)
+    )
+
+    app.add_handler(
+        CommandHandler("history", history)
+    )
+
+    app.add_handler(
+        CommandHandler("graph", graph)
+    )
 
     print("Telegram bot is running...")
+
     app.run_polling()
 
 
 if __name__ == "__main__":
-    main()
+    main(()
