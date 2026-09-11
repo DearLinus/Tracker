@@ -2,6 +2,7 @@ from io import BytesIO
 from datetime import timedelta
 
 import matplotlib
+
 matplotlib.use("Agg")
 
 from matplotlib.figure import Figure
@@ -28,6 +29,7 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
 
     all_dates = sorted(records.keys())
     latest_date = all_dates[-1]
+
     start_date = latest_date - timedelta(days=days - 1)
 
     filtered = {
@@ -37,7 +39,9 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
     }
 
     if not filtered:
-        filtered = {latest_date: records[latest_date]}
+        filtered = {
+            latest_date: records[latest_date]
+        }
 
     dates = sorted(filtered.keys())
     counts = [filtered[d] for d in dates]
@@ -50,19 +54,31 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
     border = "#374151" if dark else "#d1d5db"
     accent = "#6366f1"
 
-    fig = Figure(figsize=(9.2, 4.7), dpi=100)
+    # Increase figure width when there are many dates.
+    figure_width = max(
+        9.2,
+        min(18, len(dates) * 0.55)
+    )
+
+    fig = Figure(
+        figsize=(figure_width, 4.7),
+        dpi=100
+    )
+
     ax = fig.add_subplot(111)
 
     ax.set_facecolor(card_bg)
     fig.patch.set_facecolor(card_bg)
 
     ax.set_title(
-    "Masturbation Trend",
-    fontsize=16,
-    fontweight="bold",
-    color=text,
-    pad=18,
-)
+        "Masturbation Trend",
+        fontsize=16,
+        fontweight="bold",
+        color=text,
+        pad=18,
+    )
+
+    # Main trend line
     ax.plot(
         dates,
         counts,
@@ -72,9 +88,11 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
         color=accent,
         markeredgecolor=accent,
         markerfacecolor=accent,
+        zorder=3,
     )
 
     ax.set_xticks(dates)
+
     ax.xaxis.set_major_formatter(
         mdates.DateFormatter("%b %d")
     )
@@ -82,13 +100,17 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
     date_count = len(dates)
 
     if date_count <= 10:
-        label_size, rotation = 9, 0
+        label_size = 9
+        rotation = 0
     elif date_count <= 18:
-        label_size, rotation = 8, 25
+        label_size = 8
+        rotation = 25
     elif date_count <= 30:
-        label_size, rotation = 7, 35
+        label_size = 7
+        rotation = 35
     else:
-        label_size, rotation = 6.5, 45
+        label_size = 6.5
+        rotation = 45
 
     ax.tick_params(
         axis="x",
@@ -104,29 +126,21 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
         colors=secondary_text,
     )
 
-    for label in ax.get_xticklabels() + ax.get_yticklabels():
+    # Make all axis labels bold.
+    for label in (
+        ax.get_xticklabels()
+        + ax.get_yticklabels()
+    ):
         label.set_color(secondary_text)
-        label.set_fontweight("normal")
+        label.set_fontweight("bold")
 
     ax.yaxis.set_major_locator(
         MaxNLocator(integer=True)
     )
 
-    x_num = mdates.date2num(dates)
-
-    if len(x_num) == 1:
-        ax.set_xlim(
-            x_num[0] - 1,
-            x_num[0] + 1
-        )
-    else:
-        span = x_num[-1] - x_num[0]
-        padding = max(0.75, span * 0.03)
-
-        ax.set_xlim(
-            x_num[0] - padding,
-            x_num[-1] + padding
-        )
+    # -------------------------------------------------
+    # Y-axis range
+    # -------------------------------------------------
 
     max_count = max(counts)
     min_count = min(counts)
@@ -149,6 +163,65 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
 
     ax.set_ylim(lower, upper)
 
+    # -------------------------------------------------
+    # Red dashed guide lines
+    # -------------------------------------------------
+
+    for d, count in zip(dates, counts):
+
+        # Vertical line from point to X-axis.
+        ax.vlines(
+            d,
+            lower,
+            count,
+            colors="red",
+            linestyles="--",
+            linewidth=1,
+            alpha=0.65,
+            zorder=1,
+        )
+
+        # Horizontal line from Y-axis toward the point.
+        ax.hlines(
+            count,
+            dates[0],
+            d,
+            colors="red",
+            linestyles="--",
+            linewidth=1,
+            alpha=0.65,
+            zorder=1,
+        )
+
+    # -------------------------------------------------
+    # X-axis range
+    # -------------------------------------------------
+
+    x_num = mdates.date2num(dates)
+
+    if len(x_num) == 1:
+        ax.set_xlim(
+            x_num[0] - 1,
+            x_num[0] + 1
+        )
+
+    else:
+        span = x_num[-1] - x_num[0]
+
+        padding = max(
+            0.75,
+            span * 0.03
+        )
+
+        ax.set_xlim(
+            x_num[0] - padding,
+            x_num[-1] + padding
+        )
+
+    # -------------------------------------------------
+    # Grid
+    # -------------------------------------------------
+
     ax.grid(
         axis="y",
         linestyle="--",
@@ -156,11 +229,19 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
         alpha=0.20,
     )
 
+    # -------------------------------------------------
+    # Spines
+    # -------------------------------------------------
+
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
     ax.spines["left"].set_color(border)
     ax.spines["bottom"].set_color(border)
+
+    # -------------------------------------------------
+    # Axis titles
+    # -------------------------------------------------
 
     ax.set_xlabel(
         "Date",
@@ -179,6 +260,10 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
     )
 
     fig.tight_layout()
+
+    # -------------------------------------------------
+    # Export
+    # -------------------------------------------------
 
     image = BytesIO()
     image.name = "daily_tracker.png"
