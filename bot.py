@@ -26,32 +26,31 @@ from graph import create_graph
 
 logic = TrackerLogic()
 
-# Optional sticker IDs.
-#
-# You can set these as environment variables:
-#
-# WELCOME_STICKER_ID
-# SUCCESS_STICKER_ID
-# ERROR_STICKER_ID
-#
-# If they are not set, the bot simply uses emojis instead.
 
-WELCOME_STICKER_ID = os.environ.get("WELCOME_STICKER_ID")
-SUCCESS_STICKER_ID = os.environ.get("SUCCESS_STICKER_ID")
-ERROR_STICKER_ID = os.environ.get("ERROR_STICKER_ID")
+WELCOME_STICKER_ID = os.environ.get(
+    "WELCOME_STICKER_ID"
+)
+
+SUCCESS_STICKER_ID = os.environ.get(
+    "SUCCESS_STICKER_ID"
+)
+
+ERROR_STICKER_ID = os.environ.get(
+    "ERROR_STICKER_ID"
+)
 
 
 # =========================================================
 # TIMELINES
 # =========================================================
 
-TIMELINE_DAYS = {
-    "Weekly": 7,
-    "Monthly": 30,
-    "3 Months": 90,
-    "6 Months": 180,
-    "1 Year": 365,
-}
+TIMELINES = (
+    "Weekly",
+    "Monthly",
+    "3 Months",
+    "6 Months",
+    "1 Year",
+)
 
 
 # =========================================================
@@ -62,7 +61,7 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         ["📈 Graph", "📝 Today Record"],
         ["➕ New Record", "📊 Statistics"],
-        ["📜 History"],
+        ["📜 History", "⚙️ Settings"],
     ],
     resize_keyboard=True,
     is_persistent=True,
@@ -74,6 +73,15 @@ GRAPH_KEYBOARD = ReplyKeyboardMarkup(
         ["Weekly", "Monthly"],
         ["3 Months", "6 Months"],
         ["1 Year"],
+        ["⬅️ Back"],
+    ],
+    resize_keyboard=True,
+)
+
+
+SETTINGS_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        ["🌙 Dark Graph", "☀️ Light Graph"],
         ["⬅️ Back"],
     ],
     resize_keyboard=True,
@@ -92,33 +100,42 @@ BACK_KEYBOARD = ReplyKeyboardMarkup(
 # HELPERS
 # =========================================================
 
+def get_user_id(update: Update):
+    return update.effective_user.id
+
+
+def get_graph_theme(update: Update):
+    user_id = get_user_id(update)
+
+    return logic.get_setting(
+        user_id,
+        "graph_theme",
+        default="dark",
+    )
+
+
+def reset_state(
+    context: ContextTypes.DEFAULT_TYPE
+):
+    context.user_data.pop(
+        "awaiting",
+        None
+    )
+
+
 async def send_sticker_if_available(
     update: Update,
     sticker_id: str | None,
 ):
-    """
-    Send a sticker if a valid Telegram sticker file_id
-    has been configured.
-    """
-
     if not sticker_id:
         return
 
     try:
-        await update.message.reply_sticker(sticker_id)
+        await update.message.reply_sticker(
+            sticker_id
+        )
     except Exception:
-        # A bad/expired sticker ID should never break the bot.
         pass
-
-
-def reset_state(
-    context: ContextTypes.DEFAULT_TYPE,
-):
-    """
-    Clear any active input state.
-    """
-
-    context.user_data.pop("awaiting", None)
 
 
 # =========================================================
@@ -127,20 +144,23 @@ def reset_state(
 
 async def start(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
 
     await send_sticker_if_available(
         update,
-        WELCOME_STICKER_ID,
+        WELCOME_STICKER_ID
     )
 
     await update.message.reply_text(
         "👋 Welcome to Daily Tracker!\n\n"
-        "Track your daily progress, review your history, "
-        "check your statistics, and visualize your activity "
-        "with a graph.\n\n"
+        "Daily Tracker is a personal tracker for "
+        "recording and viewing the trend of masturbation "
+        "frequency over time.\n\n"
+        "You can record your daily count, review your "
+        "history and statistics, and visualize your "
+        "progress with a graph.\n\n"
         "Choose an option below:",
         reply_markup=MAIN_KEYBOARD,
     )
@@ -152,15 +172,19 @@ async def start(
 
 async def show_graph_menu(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
 
-    context.user_data["awaiting"] = "graph_timeline"
+    context.user_data["awaiting"] = (
+        "graph_timeline"
+    )
 
     await update.message.reply_text(
-        "📈 Graph\n\n"
-        "Choose the time range you want to see:",
+        "📈 Masturbation Trend\n\n"
+        "This graph shows the recorded masturbation "
+        "frequency over time.\n\n"
+        "Choose the time range:",
         reply_markup=GRAPH_KEYBOARD,
     )
 
@@ -170,29 +194,32 @@ async def send_graph(
     context: ContextTypes.DEFAULT_TYPE,
     timeline_name: str,
 ):
-    if timeline_name not in TIMELINE_DAYS:
+    if timeline_name not in TIMELINES:
         await update.message.reply_text(
-            "⚠️ Please choose one of the available time ranges.",
+            "⚠️ Please choose one of the available "
+            "time ranges.",
             reply_markup=GRAPH_KEYBOARD,
         )
         return
 
     try:
-        # create_graph() returns a BytesIO image.
+        theme = get_graph_theme(update)
+
         graph_image = create_graph(
             logic,
             timeline=timeline_name,
-            theme="dark",
+            theme=theme,
         )
 
         if graph_image is None:
+            reset_state(context)
+
             await update.message.reply_text(
                 "📈 No records available yet.\n\n"
-                "Add some records first, then come back here.",
+                "Add some records first, then come "
+                "back here.",
                 reply_markup=MAIN_KEYBOARD,
             )
-
-            reset_state(context)
             return
 
         graph_image.seek(0)
@@ -200,11 +227,12 @@ async def send_graph(
         await update.message.reply_photo(
             photo=InputFile(
                 graph_image,
-                filename="daily_tracker.png",
+                filename="masturbation_trend.png",
             ),
             caption=(
-                f"📈 Daily Tracker\n\n"
-                f"Time range: {timeline_name}"
+                "📈 Masturbation Trend\n\n"
+                f"Time range: {timeline_name}\n"
+                f"Theme: {theme.capitalize()}"
             ),
         )
 
@@ -216,13 +244,81 @@ async def send_graph(
         )
 
     except Exception as error:
+        reset_state(context)
+
         await update.message.reply_text(
             "⚠️ I couldn't generate the graph.\n\n"
             f"Error: {error}",
             reply_markup=MAIN_KEYBOARD,
         )
 
-        reset_state(context)
+
+# =========================================================
+# SETTINGS
+# =========================================================
+
+async def show_settings(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+    reset_state(context)
+
+    current_theme = get_graph_theme(
+        update
+    )
+
+    theme_text = (
+        "🌙 Dark"
+        if current_theme == "dark"
+        else "☀️ Light"
+    )
+
+    context.user_data["awaiting"] = (
+        "settings"
+    )
+
+    await update.message.reply_text(
+        "⚙️ Settings\n\n"
+        "Graph appearance\n\n"
+        f"Current theme: {theme_text}\n\n"
+        "Choose how your graph should look:",
+        reply_markup=SETTINGS_KEYBOARD,
+    )
+
+
+async def change_graph_theme(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    theme: str,
+):
+    if theme not in ("dark", "light"):
+        return
+
+    user_id = get_user_id(update)
+
+    logic.set_setting(
+        user_id,
+        "graph_theme",
+        theme,
+    )
+
+    reset_state(context)
+
+    if theme == "dark":
+        message = (
+            "🌙 Dark graph enabled.\n\n"
+            "Your graph will now use the dark theme."
+        )
+    else:
+        message = (
+            "☀️ Light graph enabled.\n\n"
+            "Your graph will now use the light theme."
+        )
+
+    await update.message.reply_text(
+        message,
+        reply_markup=MAIN_KEYBOARD,
+    )
 
 
 # =========================================================
@@ -231,13 +327,16 @@ async def send_graph(
 
 async def start_today_record(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
 
-    context.user_data["awaiting"] = "today_count"
+    context.user_data["awaiting"] = (
+        "today_count"
+    )
 
     today = date.today()
+
     existing = logic.get_record(today)
 
     if existing is None:
@@ -264,7 +363,7 @@ async def start_today_record(
 
 async def save_today_record(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     text = update.message.text.strip()
 
@@ -291,17 +390,20 @@ async def save_today_record(
         existing = logic.get_record(today)
 
         if existing is None:
-            logic.add_record(today, count)
+            logic.add_record(
+                today,
+                count
+            )
         else:
             logic.update_record(
                 today,
                 today,
-                count,
+                count
             )
 
         await send_sticker_if_available(
             update,
-            SUCCESS_STICKER_ID,
+            SUCCESS_STICKER_ID
         )
 
         await update.message.reply_text(
@@ -314,13 +416,18 @@ async def save_today_record(
         reset_state(context)
 
     except Exception as error:
+        await send_sticker_if_available(
+            update,
+            ERROR_STICKER_ID
+        )
+
+        reset_state(context)
+
         await update.message.reply_text(
             "⚠️ I couldn't save today's record.\n\n"
             f"Error: {error}",
             reply_markup=MAIN_KEYBOARD,
         )
-
-        reset_state(context)
 
 
 # =========================================================
@@ -329,11 +436,13 @@ async def save_today_record(
 
 async def start_new_record(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
 
-    context.user_data["awaiting"] = "new_record"
+    context.user_data["awaiting"] = (
+        "new_record"
+    )
 
     await update.message.reply_text(
         "➕ New Record\n\n"
@@ -347,7 +456,7 @@ async def start_new_record(
 
 async def save_new_record(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     parts = update.message.text.strip().split()
 
@@ -365,29 +474,19 @@ async def save_new_record(
     date_text = parts[0]
     count_text = parts[1]
 
-    # -----------------------------
-    # Date
-    # -----------------------------
-
     try:
         record_date = datetime.strptime(
             date_text,
-            "%Y-%m-%d",
+            "%Y-%m-%d"
         ).date()
 
     except ValueError:
         await update.message.reply_text(
             "⚠️ Invalid date.\n\n"
-            "Please use YYYY-MM-DD.\n\n"
-            "Example:\n"
-            "2026-09-10 8",
+            "Please use YYYY-MM-DD.",
             reply_markup=BACK_KEYBOARD,
         )
         return
-
-    # -----------------------------
-    # Count
-    # -----------------------------
 
     try:
         count = int(count_text)
@@ -406,51 +505,53 @@ async def save_new_record(
         )
         return
 
-    # -----------------------------
-    # Save / Update
-    # -----------------------------
-
     try:
-        existing = logic.get_record(record_date)
+        existing = logic.get_record(
+            record_date
+        )
 
         if existing is None:
             logic.add_record(
                 record_date,
-                count,
+                count
             )
-            action = "added"
-
+            action = "Added"
         else:
             logic.update_record(
                 record_date,
                 record_date,
-                count,
+                count
             )
-            action = "updated"
+            action = "Updated"
 
         await send_sticker_if_available(
             update,
-            SUCCESS_STICKER_ID,
+            SUCCESS_STICKER_ID
         )
 
         await update.message.reply_text(
             "✅ Record saved successfully.\n\n"
             f"Date: {record_date.strftime('%B %d, %Y')}\n"
             f"Count: {count}\n\n"
-            f"Action: {action.capitalize()}",
+            f"Action: {action}",
             reply_markup=MAIN_KEYBOARD,
         )
 
         reset_state(context)
 
     except Exception as error:
+        await send_sticker_if_available(
+            update,
+            ERROR_STICKER_ID
+        )
+
+        reset_state(context)
+
         await update.message.reply_text(
             "⚠️ I couldn't save the record.\n\n"
             f"Error: {error}",
             reply_markup=MAIN_KEYBOARD,
         )
-
-        reset_state(context)
 
 
 # =========================================================
@@ -459,7 +560,7 @@ async def save_new_record(
 
 async def show_statistics(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
 
@@ -472,8 +573,7 @@ async def show_statistics(
         if not records:
             await update.message.reply_text(
                 "📊 Statistics\n\n"
-                "No records yet.\n\n"
-                "Add your first record to start tracking.",
+                "No records yet.",
                 reply_markup=MAIN_KEYBOARD,
             )
             return
@@ -501,7 +601,7 @@ async def show_statistics(
 
 async def show_history(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
 
@@ -521,10 +621,9 @@ async def show_history(
             "",
         ]
 
-        # Newest first
         for record_date in sorted(
             records.keys(),
-            reverse=True,
+            reverse=True
         ):
             count = records[record_date]
 
@@ -551,7 +650,7 @@ async def show_history(
 
 async def go_back(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
 
@@ -568,50 +667,105 @@ async def go_back(
 
 async def handle_text(
     update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     text = update.message.text.strip()
 
-    # -----------------------------------------------------
-    # Active input states
-    # -----------------------------------------------------
+    awaiting = context.user_data.get(
+        "awaiting"
+    )
 
-    awaiting = context.user_data.get("awaiting")
+    # -----------------------------------------------------
+    # Graph
+    # -----------------------------------------------------
 
     if awaiting == "graph_timeline":
 
         if text == "⬅️ Back":
-            await go_back(update, context)
+            await go_back(
+                update,
+                context
+            )
             return
 
         await send_graph(
             update,
             context,
-            text,
+            text
         )
         return
+
+    # -----------------------------------------------------
+    # Settings
+    # -----------------------------------------------------
+
+    if awaiting == "settings":
+
+        if text == "⬅️ Back":
+            await go_back(
+                update,
+                context
+            )
+            return
+
+        if text == "🌙 Dark Graph":
+            await change_graph_theme(
+                update,
+                context,
+                "dark"
+            )
+            return
+
+        if text == "☀️ Light Graph":
+            await change_graph_theme(
+                update,
+                context,
+                "light"
+            )
+            return
+
+        await update.message.reply_text(
+            "⚠️ Please choose one of the "
+            "available settings.",
+            reply_markup=SETTINGS_KEYBOARD,
+        )
+        return
+
+    # -----------------------------------------------------
+    # Today
+    # -----------------------------------------------------
 
     if awaiting == "today_count":
 
         if text == "⬅️ Back":
-            await go_back(update, context)
+            await go_back(
+                update,
+                context
+            )
             return
 
         await save_today_record(
             update,
-            context,
+            context
         )
         return
+
+    # -----------------------------------------------------
+    # New Record
+    # -----------------------------------------------------
 
     if awaiting == "new_record":
 
         if text == "⬅️ Back":
-            await go_back(update, context)
+            await go_back(
+                update,
+                context
+            )
             return
 
         await save_new_record(
             update,
-            context,
+            context
         )
         return
 
@@ -622,42 +776,49 @@ async def handle_text(
     if text == "📈 Graph":
         await show_graph_menu(
             update,
-            context,
+            context
         )
         return
 
     if text == "📝 Today Record":
         await start_today_record(
             update,
-            context,
+            context
         )
         return
 
     if text == "➕ New Record":
         await start_new_record(
             update,
-            context,
+            context
         )
         return
 
     if text == "📊 Statistics":
         await show_statistics(
             update,
-            context,
+            context
         )
         return
 
     if text == "📜 History":
         await show_history(
             update,
-            context,
+            context
+        )
+        return
+
+    if text == "⚙️ Settings":
+        await show_settings(
+            update,
+            context
         )
         return
 
     if text == "⬅️ Back":
         await go_back(
             update,
-            context,
+            context
         )
         return
 
@@ -678,11 +839,11 @@ async def handle_text(
 
 async def error_handler(
     update: object,
-    context: ContextTypes.DEFAULT_TYPE,
+    context: ContextTypes.DEFAULT_TYPE
 ):
     print(
         "Telegram bot error:",
-        context.error,
+        context.error
     )
 
 
@@ -698,7 +859,8 @@ def main():
 
     if not token:
         raise RuntimeError(
-            "TELEGRAM_BOT_TOKEN environment variable is not set."
+            "TELEGRAM_BOT_TOKEN environment variable "
+            "is not set."
         )
 
     app = (
@@ -708,37 +870,28 @@ def main():
         .build()
     )
 
-    # -----------------------------
-    # Commands
-    # -----------------------------
-
+    # Only /start remains a command.
     app.add_handler(
         CommandHandler(
             "start",
-            start,
+            start
         )
     )
-
-    # -----------------------------
-    # Text / button handling
-    # -----------------------------
 
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
-            handle_text,
+            handle_text
         )
     )
-
-    # -----------------------------
-    # Errors
-    # -----------------------------
 
     app.add_error_handler(
         error_handler
     )
 
-    print("Daily Tracker bot is running...")
+    print(
+        "Daily Tracker bot is running..."
+    )
 
     app.run_polling()
 
