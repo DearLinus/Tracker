@@ -49,13 +49,6 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
     secondary_text = "#ffffff" if dark else "#6b7280"
     border = "#374151" if dark else "#d1d5db"
     accent = "#6366f1"
-    ax.set_title(
-    "Masturbation Trend",
-    fontsize=16,
-    fontweight="bold",
-    color=text,
-    pad=18,
-    )
 
     fig = Figure(figsize=(9.2, 4.7), dpi=100)
     ax = fig.add_subplot(111)
@@ -63,6 +56,13 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
     ax.set_facecolor(card_bg)
     fig.patch.set_facecolor(card_bg)
 
+    ax.set_title(
+    "Masturbation Trend",
+    fontsize=16,
+    fontweight="bold",
+    color=text,
+    pad=18,
+)
     ax.plot(
         dates,
         counts,
