@@ -1,5 +1,7 @@
 from io import BytesIO
-from datetime import date, timedelta
+
+from datetime import date, timedelta, datetime
+from zoneinfo import ZoneInfo
 
 import matplotlib
 matplotlib.use("Agg")
@@ -18,22 +20,38 @@ TIMELINE_DAYS = {
 }
 
 
-def create_graph(logic, timeline="Monthly", theme="dark"):
-    records = logic.get_records()
+def create_graph(
+    logic,
+    user_id,
+    timeline="Monthly",
+    theme="dark"
+):
+
+    records = logic.get_records(user_id)
 
     if not records:
         return None
 
-    days = TIMELINE_DAYS.get(timeline, 30)
 
-    # ---------------------------------------------------------
-    # Filter records according to selected timeline
-    # ---------------------------------------------------------
+    days = TIMELINE_DAYS.get(
+        timeline,
+        30
+    )
+
+
+    # -------------------------------
+    # Filter timeline
+    # -------------------------------
 
     all_dates = sorted(records.keys())
+
     latest_date = all_dates[-1]
 
-    start_date = latest_date - timedelta(days=days - 1)
+    start_date = (
+        latest_date
+        - timedelta(days=days - 1)
+    )
+
 
     filtered = {
         d: count
@@ -41,164 +59,198 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
         if start_date <= d <= latest_date
     }
 
+
     if not filtered:
         filtered = {
             latest_date: records[latest_date]
         }
 
+
     dates = sorted(filtered.keys())
+
     counts = [
         filtered[d]
         for d in dates
     ]
 
-    # ---------------------------------------------------------
+
+    # -------------------------------
     # Theme
-    # ---------------------------------------------------------
+    # -------------------------------
 
     dark = theme.lower() == "dark"
 
-    card_bg = "#1f2937" if dark else "#ffffff"
-    text = "#ffffff" if dark else "#111827"
-    secondary_text = "#ffffff" if dark else "#6b7280"
-    border = "#374151" if dark else "#d1d5db"
-    accent = "#6366f1"
-
-    # ---------------------------------------------------------
-    # Figure
-    # ---------------------------------------------------------
-
-    # Give more horizontal space when there are more dates.
-    figure_width = max(
-        9.2,
-        min(20, len(dates) * 0.60)
+    background = (
+        "#1f2937"
+        if dark
+        else "#ffffff"
     )
 
+    text_color = (
+        "#ffffff"
+        if dark
+        else "#111827"
+    )
+
+    secondary_color = (
+        "#ffffff"
+        if dark
+        else "#6b7280"
+    )
+
+    border_color = (
+        "#374151"
+        if dark
+        else "#d1d5db"
+    )
+
+
+    accent = "#6366f1"
+
+
+    # -------------------------------
+    # Figure
+    # -------------------------------
+
+    width = max(
+        9,
+        min(
+            20,
+            len(dates) * 0.6
+        )
+    )
+
+
     fig = Figure(
-        figsize=(figure_width, 4.7),
+        figsize=(width, 4.7),
         dpi=100
     )
 
+
     ax = fig.add_subplot(111)
 
-    ax.set_facecolor(card_bg)
-    fig.patch.set_facecolor(card_bg)
 
-    # ---------------------------------------------------------
+    fig.patch.set_facecolor(
+        background
+    )
+
+    ax.set_facecolor(
+        background
+    )
+
+
+    # -------------------------------
     # Title
-    # ---------------------------------------------------------
+    # -------------------------------
 
     ax.set_title(
         "Masturbation Trend",
         fontsize=16,
         fontweight="bold",
-        color=text,
-        pad=18,
+        color=text_color,
+        pad=18
     )
 
-    # ---------------------------------------------------------
-    # Main trend line
-    # ---------------------------------------------------------
+
+    # -------------------------------
+    # Line
+    # -------------------------------
 
     ax.plot(
         dates,
         counts,
         marker="o",
-        markersize=7.5,
+        markersize=7,
         linewidth=2.4,
         color=accent,
-        markeredgecolor=accent,
-        markerfacecolor=accent,
-        zorder=3,
+        zorder=3
     )
 
-    # ---------------------------------------------------------
-    # X-axis dates
-    # ---------------------------------------------------------
 
-    ax.set_xticks(dates)
+    # -------------------------------
+    # X axis
+    # -------------------------------
+
+    if len(dates) <= 30:
+
+        ax.set_xticks(
+            dates
+    )
+
+    else:
+
+        ax.xaxis.set_major_locator(
+        mdates.AutoDateLocator(
+            minticks=5,
+            maxticks=12
+        )
+    )
+
 
     ax.xaxis.set_major_formatter(
-        mdates.DateFormatter("%b %d")
-    )
+    mdates.DateFormatter("%b %d")
+)
 
-    date_count = len(dates)
 
-    if date_count <= 10:
-        label_size = 9
+    if len(dates) <= 10:
         rotation = 0
-    elif date_count <= 18:
-        label_size = 8
+        size = 9
+
+    elif len(dates) <= 18:
         rotation = 25
-    elif date_count <= 30:
-        label_size = 7
+        size = 8
+
+    elif len(dates) <= 30:
         rotation = 35
+        size = 7
+
     else:
-        label_size = 6.5
         rotation = 45
+        size = 6
+
+
 
     ax.tick_params(
         axis="x",
-        labelsize=label_size,
-        pad=8,
-        colors=secondary_text,
+        colors=secondary_color,
+        labelsize=size,
         rotation=rotation,
+        pad=8
     )
 
-    # ---------------------------------------------------------
-    # Y-axis
-    # ---------------------------------------------------------
 
     ax.tick_params(
         axis="y",
-        labelsize=9,
-        colors=secondary_text,
+        colors=secondary_color,
+        labelsize=9
     )
 
-    # Make both X and Y labels bold
+
     for label in (
         ax.get_xticklabels()
-        + ax.get_yticklabels()
+        +
+        ax.get_yticklabels()
     ):
-        label.set_color(secondary_text)
-        label.set_fontweight("bold")
+        label.set_fontweight(
+            "bold"
+        )
+
+
+    # -------------------------------
+    # Y axis
+    # -------------------------------
 
     ax.yaxis.set_major_locator(
         MaxNLocator(integer=True)
     )
 
-    # ---------------------------------------------------------
-    # X-axis limits
-    # ---------------------------------------------------------
-
-    x_num = mdates.date2num(dates)
-
-    if len(x_num) == 1:
-        ax.set_xlim(
-            x_num[0] - 1,
-            x_num[0] + 1
-        )
-    else:
-        span = x_num[-1] - x_num[0]
-
-        padding = max(
-            0.75,
-            span * 0.03
-        )
-
-        ax.set_xlim(
-            x_num[0] - padding,
-            x_num[-1] + padding
-        )
-
-    # ---------------------------------------------------------
-    # Y-axis limits
-    # ---------------------------------------------------------
 
     max_count = max(counts)
     min_count = min(counts)
 
+
     if max_count == min_count:
+
         lower = max(
             0,
             min_count - 1
@@ -207,9 +259,11 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
         upper = max_count + 1
 
     else:
+
         padding = max(
             1,
-            (max_count - min_count) * 0.12
+            (max_count - min_count)
+            * 0.12
         )
 
         lower = max(
@@ -219,34 +273,33 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
 
         upper = max_count + padding
 
+
+
     ax.set_ylim(
         lower,
         upper
     )
 
-    # ---------------------------------------------------------
-    # TODAY GUIDE LINES
-    # ---------------------------------------------------------
 
-    today = date.today()
+    # -------------------------------
+    # Today guide
+    # -------------------------------
 
-    if today in records and today in filtered:
+    today = datetime.now(
+        ZoneInfo("Europe/Istanbul")
+    ).date()
+
+
+    if (
+        today in records
+        and today in filtered
+    ):
 
         today_count = records[today]
 
-        # Get the ACTUAL visible left boundary of the graph.
-        x_left = ax.get_xlim()[0]
 
-        # -----------------------------------------------------
-        # Vertical line:
-        #
-        #       ●
-        #       │
-        #       │
-        #       │
-        #       ↓
-        #      X-axis
-        # -----------------------------------------------------
+        left = ax.get_xlim()[0]
+
 
         ax.vlines(
             today,
@@ -255,91 +308,84 @@ def create_graph(logic, timeline="Monthly", theme="dark"):
             colors="red",
             linestyles="--",
             linewidth=1.2,
-            alpha=0.65,
-            zorder=1,
+            alpha=0.65
         )
 
-        # -----------------------------------------------------
-        # Horizontal line:
-        #
-        # Y-axis ─ ─ ─ ─ ─ ─ ─ ●
-        #                         ↑
-        #                      today
-        # -----------------------------------------------------
 
         ax.hlines(
             today_count,
-            x_left,
+            left,
             today,
             colors="red",
             linestyles="--",
             linewidth=1.2,
-            alpha=0.65,
-            zorder=1,
+            alpha=0.65
         )
 
-    # ---------------------------------------------------------
-    # Grid
-    # ---------------------------------------------------------
+
+    # -------------------------------
+    # Grid and borders
+    # -------------------------------
 
     ax.grid(
         axis="y",
         linestyle="--",
         linewidth=0.8,
-        alpha=0.20,
+        alpha=0.2
     )
 
-    # ---------------------------------------------------------
-    # Spines
-    # ---------------------------------------------------------
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
-    ax.spines["left"].set_color(border)
-    ax.spines["bottom"].set_color(border)
 
-    # ---------------------------------------------------------
-    # Axis labels
-    # ---------------------------------------------------------
+    ax.spines["left"].set_color(
+        border_color
+    )
+
+    ax.spines["bottom"].set_color(
+        border_color
+    )
+
 
     ax.set_xlabel(
         "Date",
         fontsize=10,
         fontweight="bold",
-        labelpad=12,
-        color=text,
+        color=text_color,
+        labelpad=12
     )
+
 
     ax.set_ylabel(
         "Count",
         fontsize=10,
         fontweight="bold",
-        labelpad=12,
-        color=text,
+        color=text_color,
+        labelpad=12
     )
 
-    # ---------------------------------------------------------
-    # Layout
-    # ---------------------------------------------------------
 
     fig.tight_layout()
 
-    # ---------------------------------------------------------
-    # Save image to memory
-    # ---------------------------------------------------------
+
+    # -------------------------------
+    # Export
+    # -------------------------------
 
     image = BytesIO()
 
     image.name = "daily_tracker.png"
+
 
     fig.savefig(
         image,
         format="png",
         dpi=120,
         facecolor=fig.get_facecolor(),
-        bbox_inches="tight",
+        bbox_inches="tight"
     )
+
 
     image.seek(0)
 

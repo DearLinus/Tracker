@@ -152,6 +152,13 @@ async def start(
 ):
     reset_state(context)
 
+    user = update.effective_user
+
+    logic.create_user(
+        user.id,
+        user.username
+    )
+
     await send_sticker_if_available(
         update,
         WELCOME_STICKER_ID
@@ -210,9 +217,10 @@ async def send_graph(
         theme = get_graph_theme(update)
 
         graph_image = create_graph(
-            logic,
-            timeline=timeline_name,
-            theme=theme,
+        logic,
+        user_id=get_user_id(update),
+        timeline=timeline_name,
+        theme=theme,
         )
 
         if graph_image is None:
@@ -329,6 +337,10 @@ async def change_graph_theme(
 # TODAY RECORD
 # =========================================================
 
+# =========================================================
+# TODAY RECORD
+# =========================================================
+
 async def start_today_record(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -341,7 +353,12 @@ async def start_today_record(
 
     today = date.today()
 
-    existing = logic.get_record(today)
+    user_id = get_user_id(update)
+
+    existing = logic.get_record(
+        user_id,
+        today
+    )
 
     if existing is None:
         message = (
@@ -371,8 +388,11 @@ async def save_today_record(
 ):
     text = update.message.text.strip()
 
+    user_id = get_user_id(update)
+
     try:
         count = int(text)
+
     except ValueError:
         await update.message.reply_text(
             "⚠️ Please enter a whole number.\n\n"
@@ -391,15 +411,21 @@ async def save_today_record(
     today = date.today()
 
     try:
-        existing = logic.get_record(today)
+        existing = logic.get_record(
+            user_id,
+            today
+        )
 
         if existing is None:
             logic.add_record(
+                user_id,
                 today,
                 count
             )
+
         else:
             logic.update_record(
+                user_id,
                 today,
                 today,
                 count
@@ -510,18 +536,23 @@ async def save_new_record(
         return
 
     try:
+        user_id = get_user_id(update)
+
         existing = logic.get_record(
+            user_id,
             record_date
         )
 
         if existing is None:
             logic.add_record(
+                user_id,
                 record_date,
                 count
             )
             action = "Added"
         else:
             logic.update_record(
+                user_id,
                 record_date,
                 record_date,
                 count
@@ -569,10 +600,12 @@ async def show_statistics(
     reset_state(context)
 
     try:
-        total = logic.get_total()
-        average = logic.get_average()
-        highest = logic.get_highest()
-        records = logic.get_records()
+        user_id = get_user_id(update)
+
+        total = logic.get_total(user_id)
+        average = logic.get_average(user_id)
+        highest = logic.get_highest(user_id)
+        records = logic.get_records(user_id)
 
         if not records:
             await update.message.reply_text(
@@ -610,7 +643,9 @@ async def show_history(
     reset_state(context)
 
     try:
-        records = logic.get_records()
+        user_id = get_user_id(update)
+
+        records = logic.get_records(user_id)
 
         if not records:
             await update.message.reply_text(

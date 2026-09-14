@@ -4,18 +4,51 @@ from datetime import date
 
 class TrackerDatabase:
     """
-    Handles SQLite operations for multi-user Telegram tracker.
+    SQLite database layer for multi-user tracker.
+    Designed for Telegram bot usage.
     """
 
     def __init__(self, db_path="tracker.db"):
         self.db_path = db_path
-        self.connection = sqlite3.connect(self.db_path)
 
-        self._create_tables()
+        self._initialize_database()
 
-    def _create_tables(self):
-        # Users
-        self.connection.execute(
+
+    # =========================================================
+    # CONNECTION
+    # =========================================================
+
+    def _get_connection(self):
+        connection = sqlite3.connect(
+            self.db_path,
+            timeout=30
+        )
+
+        connection.execute(
+            "PRAGMA foreign_keys = ON"
+        )
+
+        return connection
+
+
+    def _initialize_database(self):
+        with self._get_connection() as connection:
+
+            connection.execute(
+                "PRAGMA journal_mode=WAL"
+            )
+
+            self._create_tables(connection)
+            self._create_indexes(connection)
+
+
+    # =========================================================
+    # TABLES
+    # =========================================================
+
+    def _create_tables(self, connection):
+
+        connection.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
                 telegram_id TEXT PRIMARY KEY,
@@ -25,60 +58,90 @@ class TrackerDatabase:
             """
         )
 
-        # Records
-        self.connection.execute(
+
+        connection.execute(
             """
             CREATE TABLE IF NOT EXISTS records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+
                 user_id TEXT NOT NULL,
                 record_date TEXT NOT NULL,
-                count INTEGER NOT NULL CHECK (count >= 0),
+                count INTEGER NOT NULL CHECK(count >= 0),
 
                 FOREIGN KEY(user_id)
-                REFERENCES users(telegram_id),
+                REFERENCES users(telegram_id)
+                ON DELETE CASCADE,
 
                 UNIQUE(user_id, record_date)
             )
             """
         )
 
-        # Settings
-        self.connection.execute(
+
+        connection.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
+
                 user_id TEXT NOT NULL,
                 setting_key TEXT NOT NULL,
                 setting_value TEXT NOT NULL,
 
-                PRIMARY KEY (user_id, setting_key),
+                PRIMARY KEY(
+                    user_id,
+                    setting_key
+                ),
 
                 FOREIGN KEY(user_id)
                 REFERENCES users(telegram_id)
+                ON DELETE CASCADE
             )
             """
         )
 
-        self.connection.commit()
+
+    def _create_indexes(self, connection):
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_records_user
+            ON records(user_id)
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_records_date
+            ON records(record_date)
+            """
+        )
 
 
     # =========================================================
     # USERS
     # =========================================================
 
-    def create_user(self, telegram_id, username=None):
-        self.connection.execute(
-            """
-            INSERT OR IGNORE INTO users
-            (telegram_id, username)
-            VALUES (?, ?)
-            """,
-            (
-                str(telegram_id),
-                username
-            )
-        )
+    def create_user(
+        self,
+        telegram_id,
+        username=None
+    ):
 
-        self.connection.commit()
+        with self._get_connection() as connection:
+
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO users
+                (
+                    telegram_id,
+                    username
+                )
+                VALUES (?, ?)
+                """,
+                (
+                    str(telegram_id),
+                    username
+                )
+            )
 
 
     # =========================================================
@@ -91,29 +154,31 @@ class TrackerDatabase:
         record_date,
         count
     ):
-        self.connection.execute(
-            """
-            INSERT INTO records
-            (
-                user_id,
-                record_date,
-                count
+
+        with self._get_connection() as connection:
+
+            connection.execute(
+                """
+                INSERT INTO records
+                (
+                    user_id,
+                    record_date,
+                    count
+                )
+
+                VALUES (?, ?, ?)
+
+                ON CONFLICT(user_id, record_date)
+
+                DO UPDATE SET
+                    count = excluded.count
+                """,
+                (
+                    str(user_id),
+                    record_date.isoformat(),
+                    count
+                )
             )
-            VALUES (?, ?, ?)
-
-            ON CONFLICT(user_id, record_date)
-
-            DO UPDATE SET
-                count = excluded.count
-            """,
-            (
-                str(user_id),
-                record_date.isoformat(),
-                count
-            )
-        )
-
-        self.connection.commit()
 
 
     def get_record(
@@ -121,46 +186,63 @@ class TrackerDatabase:
         user_id,
         record_date
     ):
-        cursor = self.connection.execute(
-            """
-            SELECT count
-            FROM records
-            WHERE user_id = ?
-            AND record_date = ?
-            """,
-            (
-                str(user_id),
-                record_date.isoformat()
+
+        with self._get_connection() as connection:
+
+            cursor = connection.execute(
+                """
+                SELECT count
+
+                FROM records
+
+                WHERE user_id = ?
+                AND record_date = ?
+                """,
+                (
+                    str(user_id),
+                    record_date.isoformat()
+                )
             )
-        )
 
-        row = cursor.fetchone()
+            row = cursor.fetchone()
 
-        return None if row is None else row[0]
+            return None if row is None else row[0]
 
 
-    def get_records(self, user_id):
+    def get_records(
+        self,
+        user_id
+    ):
 
-        cursor = self.connection.execute(
-            """
-            SELECT record_date, count
-            FROM records
+        with self._get_connection() as connection:
 
-            WHERE user_id = ?
+            cursor = connection.execute(
+                """
+                SELECT record_date, count
 
-            ORDER BY record_date ASC
-            """,
-            (str(user_id),)
-        )
+                FROM records
 
-        records = {}
+                WHERE user_id = ?
 
-        for record_date, count in cursor.fetchall():
-            records[
-                date.fromisoformat(record_date)
-            ] = count
+                ORDER BY record_date ASC
+                """,
+                (
+                    str(user_id),
+                )
+            )
 
-        return records
+
+            records = {}
+
+            for record_date, count in cursor.fetchall():
+
+                records[
+                    date.fromisoformat(record_date)
+                ] = count
+
+
+            return records
+
 
 
     def delete_record(
@@ -168,22 +250,23 @@ class TrackerDatabase:
         user_id,
         record_date
     ):
-        cursor = self.connection.execute(
-            """
-            DELETE FROM records
 
-            WHERE user_id = ?
-            AND record_date = ?
-            """,
-            (
-                str(user_id),
-                record_date.isoformat()
+        with self._get_connection() as connection:
+
+            cursor = connection.execute(
+                """
+                DELETE FROM records
+
+                WHERE user_id = ?
+                AND record_date = ?
+                """,
+                (
+                    str(user_id),
+                    record_date.isoformat()
+                )
             )
-        )
 
-        self.connection.commit()
-
-        return cursor.rowcount > 0
+            return cursor.rowcount > 0
 
 
     # =========================================================
@@ -195,23 +278,27 @@ class TrackerDatabase:
         user_id,
         setting_key
     ):
-        cursor = self.connection.execute(
-            """
-            SELECT setting_value
-            FROM settings
 
-            WHERE user_id = ?
-            AND setting_key = ?
-            """,
-            (
-                str(user_id),
-                setting_key
+        with self._get_connection() as connection:
+
+            cursor = connection.execute(
+                """
+                SELECT setting_value
+
+                FROM settings
+
+                WHERE user_id = ?
+                AND setting_key = ?
+                """,
+                (
+                    str(user_id),
+                    setting_key
+                )
             )
-        )
 
-        row = cursor.fetchone()
+            row = cursor.fetchone()
 
-        return None if row is None else row[0]
+            return None if row is None else row[0]
 
 
     def set_setting(
@@ -220,30 +307,38 @@ class TrackerDatabase:
         setting_key,
         setting_value
     ):
-        self.connection.execute(
-            """
-            INSERT INTO settings
-            (
-                user_id,
-                setting_key,
-                setting_value
+
+        with self._get_connection() as connection:
+
+            connection.execute(
+                """
+                INSERT INTO settings
+                (
+                    user_id,
+                    setting_key,
+                    setting_value
+                )
+
+                VALUES (?, ?, ?)
+
+                ON CONFLICT(user_id, setting_key)
+
+                DO UPDATE SET
+
+                    setting_value =
+                    excluded.setting_value
+                """,
+                (
+                    str(user_id),
+                    setting_key,
+                    setting_value
+                )
             )
-            VALUES (?, ?, ?)
 
-            ON CONFLICT(user_id, setting_key)
 
-            DO UPDATE SET
-                setting_value = excluded.setting_value
-            """,
-            (
-                str(user_id),
-                setting_key,
-                setting_value
-            )
-        )
-
-        self.connection.commit()
-
+    # =========================================================
+    # CLOSE
+    # =========================================================
 
     def close(self):
-        self.connection.close()
+        pass

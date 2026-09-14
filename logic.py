@@ -23,12 +23,14 @@ class TrackerLogic:
             user_id,
             username
         )
+        if user_id is None:
+            raise ValueError("user_id cannot be None")
 
     # =========================================================
     # RECORDS
     # =========================================================
 
-    def add_record(
+    def save_record(
         self,
         user_id,
         record_date,
@@ -65,7 +67,6 @@ class TrackerLogic:
                 "The record you are trying to edit does not exist."
             )
 
-
         if old_date != new_date:
             new_record = self.database.get_record(
                 user_id,
@@ -77,10 +78,8 @@ class TrackerLogic:
                     "A record already exists for the new date."
                 )
 
-
-        self.database.update_record(
+        self.database.add_or_update_record(
             user_id,
-            old_date,
             new_date,
             count
         )
@@ -112,7 +111,10 @@ class TrackerLogic:
         )
 
 
-    def get_records(self, user_id):
+    def get_records(
+        self,
+        user_id
+    ):
         return self.database.get_records(
             user_id
         )
@@ -122,13 +124,21 @@ class TrackerLogic:
     # STATISTICS
     # =========================================================
 
-    def get_total(self, user_id):
+    def get_total(
+        self,
+        user_id
+    ):
+        records = self.get_records(user_id)
+
         return sum(
-            self.get_records(user_id).values()
+            records.values()
         )
 
 
-    def get_average(self, user_id):
+    def get_average(
+        self,
+        user_id
+    ):
         records = self.get_records(user_id)
 
         if not records:
@@ -137,13 +147,18 @@ class TrackerLogic:
         return self.get_total(user_id) / len(records)
 
 
-    def get_highest(self, user_id):
+    def get_highest(
+        self,
+        user_id
+    ):
         records = self.get_records(user_id)
 
         if not records:
             return 0
 
-        return max(records.values())
+        return max(
+            records.values()
+        )
 
 
     # =========================================================
@@ -184,14 +199,20 @@ class TrackerLogic:
     # VALIDATION
     # =========================================================
 
-    def _validate_date(self, record_date):
+    def _validate_date(
+        self,
+        record_date
+    ):
         if not isinstance(record_date, date):
             raise TypeError(
                 "record_date must be a datetime.date object."
             )
 
 
-    def _validate_count(self, count):
+    def _validate_count(
+        self,
+        count
+    ):
         if not isinstance(count, int):
             raise TypeError(
                 "count must be an integer."
