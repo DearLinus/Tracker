@@ -5,9 +5,9 @@ __pycache__/
 
 # Virtual environments
 venv/
-.venv/
+venvunus/
 env/
-
+.env
 # Personal application data
 tracker.db
 tracker_settings.json
@@ -23,3 +23,4 @@ Thumbs.db
 # Release archives
 DailyTracker-*.zip
 update_backups/
+venvenus/
