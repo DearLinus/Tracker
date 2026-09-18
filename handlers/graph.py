@@ -2,6 +2,7 @@ from telegram import Update, InputFile
 from telegram.ext import ContextTypes
 
 from handlers.utils import get_user_id, reset_state
+import logging
 
 from keyboards import (
     MAIN_KEYBOARD,
@@ -16,6 +17,7 @@ from handlers.constants import (
     GRAPH_TIMELINES,
 )
 
+logger = logging.getLogger(__name__)
 
 def get_graph_theme(update: Update):
 
@@ -106,10 +108,11 @@ async def send_graph(
         )
 
     except Exception:
+        logger.exception("Failed to generate graph")
 
-        reset_state(context)
+    reset_state(context)
 
-        await update.message.reply_text(
-            "⚠️ I couldn't generate the graph.",
-            reply_markup=MAIN_KEYBOARD,
-        )
+    await update.message.reply_text(
+        "⚠️ I couldn't generate the graph.",
+        reply_markup=MAIN_KEYBOARD,
+    )

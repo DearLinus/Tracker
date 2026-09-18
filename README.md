@@ -1,134 +1,220 @@
 # Daily Tracker
 
-A lightweight desktop habit and activity tracker built with **Python**, **Tkinter**, **SQLite**, and **Matplotlib**.
-
-Daily Tracker lets you record daily counts, review your history, visualize trends, and manage your data through a simple desktop interface.
+A Telegram bot for tracking daily records, viewing statistics, reviewing history, and visualizing trends over time.
 
 ## Features
 
-* Add daily records
-* Edit existing records
-* Delete records
-* View complete recording history
-* Track statistics such as:
+### 📝 Record Tracking
 
-  * Total
-  * Average
-  * Highest value
-* Visualize recorded data with line graphs
-* Timeline filters:
+- Add a record for any date.
+- Record today's value directly.
+- Update existing records.
+- Delete records through the tracking logic.
+- Input validation for dates and values.
 
-  * Weekly
-  * Monthly
-  * 3 Months
-  * 6 Months
-  * 1 Year
-* Interactive graph hover information
-* Light, Dark, and System themes
-* Persistent local settings
-* SQLite-based local data storage
-* Automatic update checking
-* Automatic application updates
-* SHA-256 update verification
-* Automatic backup of user data during updates
-* Rollback support if an update replacement fails
+### 📊 Statistics
 
-## Screenshots
+View:
 
-Screenshots will be added here in a future release.
+- Number of recorded days
+- Total value
+- Average value
+- Highest recorded value
+
+### 📜 History
+
+View all recorded values, sorted from the newest date to the oldest.
+
+### 📈 Graphs
+
+Generate trend graphs for:
+
+- Weekly
+- Monthly
+- 3 Months
+- 6 Months
+- 1 Year
+
+The graph also includes a guide for today's recorded value when available.
+
+### 🎨 Graph Themes
+
+Choose between:
+
+- 🌙 Dark
+- ☀️ Light
+
+The selected theme is stored separately for each user.
+
+### 👤 Multi-user Support
+
+The bot supports multiple Telegram users.
+
+Each user's:
+
+- Records
+- Settings
+- Statistics
+
+are kept separate using their Telegram user ID.
+
+### 🌍 Timezone
+
+The bot uses:
+
+```text
+Europe/London
+````
+
+as its common timezone when determining the current date.
+
+### ⚠️ Error Handling
+
+The bot includes:
+
+* Input validation
+* User-friendly error messages
+* Global Telegram error handling
+* Internal exception logging
+
+Internal errors are logged instead of exposing raw exceptions to users.
+
+### 📋 Logging
+
+The application provides structured logs with different levels:
+
+* `DEBUG`
+* `INFO`
+* `WARNING`
+* `ERROR`
+* `CRITICAL`
+
+Log levels are displayed using different terminal colors for easier monitoring.
 
 ## Tech Stack
 
-* **Python**
-* **Tkinter** — graphical user interface
-* **SQLite** — local database
-* **Matplotlib** — data visualization
-* **Git / GitHub** — version control and releases
+* **Python 3.12+**
+* **python-telegram-bot**
+* **SQLite**
+* **Matplotlib**
+* **python-dotenv**
 
 ## Project Structure
 
 ```text
 tracker/
-├── main.py
-├── gui.py
+│
+├── bot.py
+├── config.py
+├── keyboards.py
+├── timezone.py
 ├── logic.py
+├── graph.py
 ├── database.py
-├── updater.py
-├── version.py
-├── .gitignore
-├── tracker.db
-└── tracker_settings.json
+│
+├── handlers/
+│   ├── __init__.py
+│   ├── constants.py
+│   ├── utils.py
+│   ├── start.py
+│   ├── records.py
+│   ├── graph.py
+│   ├── settings.py
+│   ├── statistics.py
+│   ├── history.py
+│   ├── navigation.py
+│   └── router.py
+│
+└── services/
+    ├── __init__.py
+    └── tracker_service.py
 ```
 
-### Architecture
+## Architecture
 
-The application follows a simple layered architecture:
+The project is divided into several components.
 
-```text
-GUI
- ↓
-Logic
- ↓
-Database
-```
-
-### `main.py`
+### `bot.py`
 
 Application entry point.
 
-### `gui.py`
+Responsible for:
 
-Contains the graphical user interface and user interaction logic.
+* Creating the Telegram application
+* Registering handlers
+* Configuring logging
+* Handling global errors
+* Starting polling
+
+### `handlers/`
+
+Contains Telegram-specific handlers.
+
+Each feature is separated into its own module:
+
+* `start.py` — `/start` command
+* `records.py` — creating and updating records
+* `graph.py` — graph menu and graph delivery
+* `settings.py` — user settings
+* `statistics.py` — statistics
+* `history.py` — history
+* `navigation.py` — navigation
+* `router.py` — text message routing
+* `utils.py` — shared handler utilities
+* `constants.py` — shared constants
 
 ### `logic.py`
 
-Contains the application's business logic and validation.
+Contains the application's core tracking logic.
+
+It handles:
+
+* User creation
+* Record creation
+* Record updates
+* Record deletion
+* Record retrieval
+* Statistics
+* User settings
+* Input validation
 
 ### `database.py`
 
 Handles SQLite database operations.
 
-### `updater.py`
+The database stores user-specific records and settings.
 
-Runs the update process separately from the main application.
+### `graph.py`
 
-It downloads the new release, verifies its SHA-256 hash, preserves user data, replaces application files, and launches the updated application.
+Responsible for generating trend graphs using Matplotlib.
 
-### `version.py`
+It receives the user's records and graph settings and produces the requested graph.
 
-Stores the current application version.
+### `services/tracker_service.py`
 
-## Data Storage
+Provides the shared `TrackerLogic` instance used by the Telegram handlers.
 
-Daily Tracker uses SQLite for persistent record storage.
+### `timezone.py`
 
-The database contains records in the following form:
+Provides the application's common timezone and current-date calculation.
 
-```text
-record_date → count
+## Configuration
+
+Create a `.env` file in the project root:
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token
+
+WELCOME_STICKER_ID=
+SUCCESS_STICKER_ID=
+ERROR_STICKER_ID=
 ```
 
-Each date can have one recorded value.
+The sticker IDs are optional.
 
-User-specific files such as:
+Do not commit your `.env` file or bot token to the repository.
 
-```text
-tracker.db
-tracker_settings.json
-update_backups/
-```
-
-are intentionally excluded from Git through `.gitignore`.
-
-This means users keep their own data independently from the application source code.
-
-## Running From Source
-
-### Requirements
-
-* Python 3
-* Tkinter
-* Matplotlib
+## Installation
 
 Clone the repository:
 
@@ -137,99 +223,76 @@ git clone https://github.com/DearLinus/Tracker.git
 cd Tracker
 ```
 
-Install the Python dependency:
+Switch to the Telegram bot branch:
 
 ```bash
-pip install matplotlib
+git checkout telegram-bot
 ```
 
-Run the application:
+Create a virtual environment:
 
 ```bash
-python main.py
+python3 -m venv venv
 ```
 
-## Releases
+Activate it on Linux/macOS:
 
-Stable application versions are distributed through GitHub Releases.
+```bash
+source venv/bin/activate
+```
 
-Release archives follow this naming convention:
+On Windows:
+
+```powershell
+venv\Scripts\activate
+```
+
+Install the dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Create your `.env` file and configure the Telegram bot token.
+
+## Running the Bot
+
+Run:
+
+```bash
+python bot.py
+```
+
+The bot will start polling Telegram for updates.
+
+## Main Menu
+
+After starting the bot with `/start`, the main menu provides:
 
 ```text
-DailyTracker-vX.Y.Z.zip
+📈 Graph
+📝 Today Record
+➕ New Record
+📊 Statistics
+📜 History
+⚙️ Settings
 ```
 
-For example:
+## Database
 
-```text
-DailyTracker-v1.1.0.zip
-```
+The Telegram bot uses SQLite for persistent storage.
 
-Release archives are not stored directly in the Git repository.
-
-## Automatic Updates
-
-Daily Tracker includes an automatic update system.
-
-The update process works approximately as follows:
-
-```text
-Check for Updates
-        ↓
-GitHub Releases API
-        ↓
-Compare Versions
-        ↓
-New Version Available?
-        ↓
-Download Release ZIP
-        ↓
-Verify SHA-256
-        ↓
-Close Application
-        ↓
-Run updater.py
-        ↓
-Backup User Data
-        ↓
-Replace Application Files
-        ↓
-Launch New Version
-```
-
-The updater is a separate process because the running application should not attempt to replace its own files.
-
-User data is preserved during updates.
-
-## Versioning
-
-The project uses semantic-style version numbers:
-
-```text
-MAJOR.MINOR.PATCH
-```
-
-For example:
-
-```text
-1.1.0
-```
-
-The current application version is defined in `version.py`.
+Records and settings are associated with each Telegram user's ID, allowing multiple users to use the same bot independently.
 
 ## Development
 
-The project is currently under active development.
+The Telegram implementation is maintained separately from the desktop version of Daily Tracker.
 
-Planned improvements include:
-
-* Windows executable packaging
-* Linux AppImage packaging
-* More comprehensive error handling
-* Automated testing
-* Improved release automation
-* Additional data visualization features
+The `telegram-bot` branch contains the Telegram bot implementation, while the main branch is used for the desktop application.
 
 ## License
 
-License information will be added in a future release.
+This project is currently unlicensed.
+
+If you plan to distribute or reuse the project, add an appropriate license to the repository.
+

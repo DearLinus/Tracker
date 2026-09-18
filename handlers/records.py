@@ -1,29 +1,23 @@
-from datetime import date, datetime
+from datetime import datetime
+from timezone import today
 
 from telegram import Update
 from telegram.ext import ContextTypes
+import logging
 
 from keyboards import MAIN_KEYBOARD, BACK_KEYBOARD
 from config import SUCCESS_STICKER_ID, ERROR_STICKER_ID
 from services.tracker_service import tracker
-from handlers.utils import get_user_id, reset_state
+from handlers.utils import (
+    get_user_id,
+    reset_state,
+    send_sticker_if_available,
+)
 
+logger = logging.getLogger(__name__)
 # =========================================================
 # HELPERS
 # =========================================================
-async def send_sticker_if_available(
-    update: Update,
-    sticker_id: str | None,
-):
-    if not sticker_id:
-        return
-
-    try:
-        await update.message.reply_sticker(sticker_id)
-    except Exception:
-        pass
-
-
 # =========================================================
 # TODAY RECORD
 # =========================================================
@@ -36,18 +30,18 @@ async def start_today_record(
 
     context.user_data["awaiting"] = "today_count"
 
-    today = date.today()
+    today_date = today()
     user_id = get_user_id(update)
 
     existing = tracker.get_record(
         user_id,
-        today
+        today_date
     )
 
     if existing is None:
         message = (
             "📝 Today Record\n\n"
-            f"Today is {today.strftime('%B %d, %Y')}.\n\n"
+            f"Today is {today_date.strftime('%B %d, %Y')}.\n\n"
             "How many times did you do it today?\n\n"
             "Send the number only.\n"
             "Example: 8"
@@ -92,26 +86,26 @@ async def save_today_record(
         )
         return
 
-    today = date.today()
+    today_date = today()
 
     try:
         existing = tracker.get_record(
             user_id,
-            today
+            today_date
         )
 
         if existing is None:
             tracker.save_record(
                 user_id,
-                today,
+                today_date,
                 count
             )
 
         else:
             tracker.update_record(
                 user_id,
-                today,
-                today,
+                today_date,
+                today_date,
                 count
             )
 
@@ -122,26 +116,28 @@ async def save_today_record(
 
         await update.message.reply_text(
             "✅ Record saved successfully.\n\n"
-            f"Date: {today.strftime('%B %d, %Y')}\n"
+            f"Date: {today_date.strftime('%B %d, %Y')}\n"
             f"Count: {count}",
             reply_markup=MAIN_KEYBOARD,
         )
 
         reset_state(context)
 
-    except Exception as error:
-        await send_sticker_if_available(
-            update,
-            ERROR_STICKER_ID
-        )
+    except Exception:
+        logger.exception("Failed to save today's record")
 
-        reset_state(context)
+    await send_sticker_if_available(
+        update,
+        ERROR_STICKER_ID,
+    )
 
-        await update.message.reply_text(
-            "⚠️ I couldn't save today's record.\n\n"
-            f"Error: {error}",
-            reply_markup=MAIN_KEYBOARD,
-        )
+    reset_state(context)
+
+    await update.message.reply_text(
+        "⚠️ I couldn't save today's record.\n\n"
+        "Please try again later.",
+        reply_markup=MAIN_KEYBOARD,
+    )
 
 
 # =========================================================
@@ -259,16 +255,18 @@ async def save_new_record(
 
         reset_state(context)
 
-    except Exception as error:
-        await send_sticker_if_available(
-            update,
-            ERROR_STICKER_ID
-        )
+    except Exception:
+        logger.exception("Failed to save a record")
 
-        reset_state(context)
+    await send_sticker_if_available(
+        update,
+        ERROR_STICKER_ID,
+    )
 
-        await update.message.reply_text(
-            "⚠️ I couldn't save the record.\n\n"
-            f"Error: {error}",
-            reply_markup=MAIN_KEYBOARD,
-        )
+    reset_state(context)
+
+    await update.message.reply_text(
+        "⚠️ I couldn't save the record.\n\n"
+        "Please try again later.",
+        reply_markup=MAIN_KEYBOARD,
+    )

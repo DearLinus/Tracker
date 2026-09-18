@@ -209,19 +209,12 @@ class TrackerLogic:
             )
 
 
-    def _validate_count(
-        self,
-        count
-    ):
-        if not isinstance(count, int):
-            raise TypeError(
-                "count must be an integer."
-            )
-
+    def _validate_count(self, count):
+        if isinstance(count, bool) or not isinstance(count, int):
+            raise TypeError("count must be an integer.")
+    
         if count < 0:
-            raise ValueError(
-                "count cannot be negative."
-            )
+            raise ValueError("count cannot be negative.")
 
 
     # =========================================================

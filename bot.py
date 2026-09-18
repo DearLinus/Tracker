@@ -10,10 +10,40 @@ from telegram.ext import (
     filters,
 )
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
+class ColoredFormatter(logging.Formatter):
+
+    COLORS = {
+        logging.DEBUG: "\033[90m",
+        logging.INFO: "\033[36m",
+        logging.WARNING: "\033[33m",
+        logging.ERROR: "\033[31m",
+        logging.CRITICAL: "\033[1;31m",
+    }
+
+    RESET = "\033[0m"
+
+    def format(self, record):
+        color = self.COLORS.get(record.levelno, "")
+        message = super().format(record)
+        return f"{color}{message}{self.RESET}"
+
+
+handler = logging.StreamHandler()
+
+handler.setFormatter(
+    ColoredFormatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 )
+
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[handler],
+)
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 logger = logging.getLogger(__name__)
 

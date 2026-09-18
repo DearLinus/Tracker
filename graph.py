@@ -1,7 +1,7 @@
 from io import BytesIO
 
-from datetime import date, timedelta, datetime
-from zoneinfo import ZoneInfo
+from datetime import date, timedelta
+from timezone import today as get_today
 
 import matplotlib
 matplotlib.use("Agg")
@@ -285,10 +285,7 @@ def create_graph(
     # Today guide
     # -------------------------------
 
-    today = datetime.now(
-        ZoneInfo("Europe/Istanbul")
-    ).date()
-
+    today = get_today()
 
     if (
         today in records
@@ -297,10 +294,33 @@ def create_graph(
 
         today_count = records[today]
 
+        # Convert today's date to its position
+        # inside the X-axis (0 = Y-axis, 1 = right edge)
+        x_min, x_max = ax.get_xlim()
 
-        left = ax.get_xlim()[0]
+        today_x = mdates.date2num(today)
 
+        today_position = (
+            (today_x - x_min)
+            / (x_max - x_min)
+        )
 
+        # Horizontal red guide:
+        # from Y-axis → today's point
+        ax.hlines(
+            today_count,
+            0,
+            today_position,
+            transform=ax.get_yaxis_transform(),
+            colors="red",
+            linestyles="--",
+            linewidth=1.2,
+            alpha=0.65,
+            zorder=2
+        )
+
+        # Vertical red guide:
+        # from X-axis → today's point
         ax.vlines(
             today,
             lower,
@@ -308,19 +328,10 @@ def create_graph(
             colors="red",
             linestyles="--",
             linewidth=1.2,
-            alpha=0.65
+            alpha=0.65,
+            zorder=2
         )
-
-
-        ax.hlines(
-            today_count,
-            left,
-            today,
-            colors="red",
-            linestyles="--",
-            linewidth=1.2,
-            alpha=0.65
-        )
+    
 
 
     # -------------------------------
