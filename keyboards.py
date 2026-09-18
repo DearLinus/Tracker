@@ -8,6 +8,7 @@ from handlers.constants import (
     HISTORY_BUTTON,
     SETTINGS_BUTTON,
     BACK_BUTTON,
+    EXPORT_BUTTON,
 
     WEEKLY_BUTTON,
     MONTHLY_BUTTON,
@@ -38,7 +39,23 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
             HISTORY_BUTTON,
             SETTINGS_BUTTON,
         ],
+    ],
+    resize_keyboard=True,
+)
 
+
+# =========================================================
+# History keyboard
+# =========================================================
+
+HISTORY_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        [
+            EXPORT_BUTTON,
+        ],
+        [
+            BACK_BUTTON,
+        ],
     ],
     resize_keyboard=True,
 )

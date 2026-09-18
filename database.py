@@ -19,6 +19,7 @@ class TrackerDatabase:
     # =========================================================
 
     def _get_connection(self):
+
         connection = sqlite3.connect(
             self.db_path,
             timeout=30
@@ -32,6 +33,7 @@ class TrackerDatabase:
 
 
     def _initialize_database(self):
+
         with self._get_connection() as connection:
 
             connection.execute(
@@ -46,14 +48,19 @@ class TrackerDatabase:
     # TABLES
     # =========================================================
 
-    def _create_tables(self, connection):
+    def _create_tables(
+        self,
+        connection
+    ):
 
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
+
                 telegram_id TEXT PRIMARY KEY,
                 username TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
+
             )
             """
         )
@@ -62,6 +69,7 @@ class TrackerDatabase:
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS records (
+
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
 
                 user_id TEXT NOT NULL,
@@ -73,6 +81,7 @@ class TrackerDatabase:
                 ON DELETE CASCADE,
 
                 UNIQUE(user_id, record_date)
+
             )
             """
         )
@@ -83,7 +92,9 @@ class TrackerDatabase:
             CREATE TABLE IF NOT EXISTS settings (
 
                 user_id TEXT NOT NULL,
+
                 setting_key TEXT NOT NULL,
+
                 setting_value TEXT NOT NULL,
 
                 PRIMARY KEY(
@@ -94,12 +105,16 @@ class TrackerDatabase:
                 FOREIGN KEY(user_id)
                 REFERENCES users(telegram_id)
                 ON DELETE CASCADE
+
             )
             """
         )
 
 
-    def _create_indexes(self, connection):
+    def _create_indexes(
+        self,
+        connection
+    ):
 
         connection.execute(
             """
@@ -107,6 +122,7 @@ class TrackerDatabase:
             ON records(user_id)
             """
         )
+
 
         connection.execute(
             """
@@ -135,7 +151,9 @@ class TrackerDatabase:
                     telegram_id,
                     username
                 )
+
                 VALUES (?, ?)
+
                 """,
                 (
                     str(telegram_id),
@@ -143,10 +161,12 @@ class TrackerDatabase:
                 )
             )
 
+
     def user_exists(
         self,
         telegram_id
     ):
+
         with self._get_connection() as connection:
 
             cursor = connection.execute(
@@ -165,6 +185,7 @@ class TrackerDatabase:
             )
 
             return cursor.fetchone() is not None
+
 
 
     # =========================================================
@@ -194,7 +215,9 @@ class TrackerDatabase:
                 ON CONFLICT(user_id, record_date)
 
                 DO UPDATE SET
+
                     count = excluded.count
+
                 """,
                 (
                     str(user_id),
@@ -219,7 +242,9 @@ class TrackerDatabase:
                 FROM records
 
                 WHERE user_id = ?
+
                 AND record_date = ?
+
                 """,
                 (
                     str(user_id),
@@ -227,9 +252,12 @@ class TrackerDatabase:
                 )
             )
 
+
             row = cursor.fetchone()
 
+
             return None if row is None else row[0]
+
 
 
     def get_records(
@@ -248,6 +276,7 @@ class TrackerDatabase:
                 WHERE user_id = ?
 
                 ORDER BY record_date ASC
+
                 """,
                 (
                     str(user_id),
@@ -256,6 +285,7 @@ class TrackerDatabase:
 
 
             records = {}
+
 
             for record_date, count in cursor.fetchall():
 
@@ -281,7 +311,9 @@ class TrackerDatabase:
                 DELETE FROM records
 
                 WHERE user_id = ?
+
                 AND record_date = ?
+
                 """,
                 (
                     str(user_id),
@@ -289,7 +321,16 @@ class TrackerDatabase:
                 )
             )
 
-            return cursor.rowcount > 0
+
+            if cursor.rowcount == 0:
+
+                raise ValueError(
+                    "Record does not exist."
+                )
+
+
+            return True
+
 
 
     # =========================================================
@@ -311,7 +352,9 @@ class TrackerDatabase:
                 FROM settings
 
                 WHERE user_id = ?
+
                 AND setting_key = ?
+
                 """,
                 (
                     str(user_id),
@@ -319,9 +362,12 @@ class TrackerDatabase:
                 )
             )
 
+
             row = cursor.fetchone()
 
+
             return None if row is None else row[0]
+
 
 
     def set_setting(
@@ -344,12 +390,15 @@ class TrackerDatabase:
 
                 VALUES (?, ?, ?)
 
+
                 ON CONFLICT(user_id, setting_key)
+
 
                 DO UPDATE SET
 
                     setting_value =
                     excluded.setting_value
+
                 """,
                 (
                     str(user_id),

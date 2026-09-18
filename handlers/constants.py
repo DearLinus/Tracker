@@ -9,7 +9,7 @@ STATISTICS_BUTTON = "📊 Statistics"
 HISTORY_BUTTON = "📜 History"
 SETTINGS_BUTTON = "⚙ Settings"
 BACK_BUTTON = "⬅️ Back"
-
+EXPORT_BUTTON = "📤 Export All History"
 
 # =========================================================
 # Graph timeline buttons

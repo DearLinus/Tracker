@@ -12,8 +12,10 @@ from handlers.settings import show_settings, change_graph_theme
 from handlers.statistics import show_statistics
 from handlers.history import show_history
 from handlers.navigation import go_back
+from handlers.export import export_records
 
 from keyboards import MAIN_KEYBOARD
+
 from services.tracker_service import tracker
 from handlers.utils import get_user_id
 
@@ -23,14 +25,13 @@ from handlers.constants import (
     TODAY_COUNT,
     NEW_RECORD,
     GRAPH_TIMELINES,
-)
 
-from handlers.constants import (
     GRAPH_BUTTON,
     TODAY_RECORD_BUTTON,
     STATISTICS_BUTTON,
     SETTINGS_BUTTON,
     BACK_BUTTON,
+    EXPORT_BUTTON,
     NEW_RECORD_BUTTON,
     HISTORY_BUTTON,
     DARK_THEME_BUTTON,
@@ -39,10 +40,15 @@ from handlers.constants import (
     LIGHT_THEME,
 )
 
+
 async def handle_text(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
+
+    # Ignore empty messages
+    if not update.message or not update.message.text:
+        return
 
     user_id = get_user_id(update)
 
@@ -52,64 +58,154 @@ async def handle_text(
         )
         return
 
+
     text = update.message.text.strip()
     awaiting = context.user_data.get("awaiting")
 
-    # Back always has priority
+
+    # =====================================================
+    # BACK
+    # =====================================================
+
     if text == BACK_BUTTON:
         await go_back(update, context)
         return
 
+
+    # =====================================================
+    # STATES
+    # =====================================================
+
     if awaiting == GRAPH_TIMELINE:
+
         if text in GRAPH_TIMELINES:
-            await send_graph(update, context, text)
+            await send_graph(
+                update,
+                context,
+                text
+            )
             return
+
 
     elif awaiting == SETTINGS:
+
         if text == DARK_THEME_BUTTON:
-            await change_graph_theme(update, context, DARK_THEME)
+            await change_graph_theme(
+                update,
+                context,
+                DARK_THEME
+            )
             return
+
 
         if text == LIGHT_THEME_BUTTON:
-            await change_graph_theme(update, context, LIGHT_THEME)
+            await change_graph_theme(
+                update,
+                context,
+                LIGHT_THEME
+            )
             return
 
+
     elif awaiting == TODAY_COUNT:
-        await save_today_record(update, context)
+
+        await save_today_record(
+            update,
+            context
+        )
         return
+
 
     elif awaiting == NEW_RECORD:
-        await save_new_record(update, context)
+
+        await save_new_record(
+            update,
+            context
+        )
         return
+
+
+
+    # =====================================================
+    # MAIN MENU
+    # =====================================================
 
     if text == GRAPH_BUTTON:
-        await show_graph_menu(update, context)
+
+        await show_graph_menu(
+            update,
+            context
+        )
         return
+
+
 
     if text == TODAY_RECORD_BUTTON:
-        await start_today_record(update, context)
+
+        await start_today_record(
+            update,
+            context
+        )
         return
+
+
 
     if text == NEW_RECORD_BUTTON:
-        await start_new_record(update, context)
+
+        await start_new_record(
+            update,
+            context
+        )
         return
+
+
 
     if text == STATISTICS_BUTTON:
-        await show_statistics(update, context)
+
+        await show_statistics(
+            update,
+            context
+        )
         return
+
+
 
     if text == HISTORY_BUTTON:
-        await show_history(update, context)
+
+        await show_history(
+            update,
+            context
+        )
         return
 
+
+
     if text == SETTINGS_BUTTON:
-        await show_settings(update, context)
+
+        await show_settings(
+            update,
+            context
+        )
         return
+
+
+
+    if text == EXPORT_BUTTON:
+
+        await export_records(
+            update,
+            context
+        )
+        return
+
+
+
     # =====================================================
     # UNKNOWN MESSAGE
     # =====================================================
+
     await update.message.reply_text(
         "⚠️ I didn't understand that.\n\n"
         "Please choose an option from the menu.",
-            reply_markup=MAIN_KEYBOARD,
-        )
+        reply_markup=MAIN_KEYBOARD,
+    )

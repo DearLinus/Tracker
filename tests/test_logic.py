@@ -1,8 +1,8 @@
 import pytest
-from datetime import date
 
 from logic import TrackerLogic
-
+from datetime import date, timedelta
+from timezone import today
 
 @pytest.fixture
 def tracker(tmp_path):
@@ -98,41 +98,39 @@ def test_get_records(tracker):
 
 
 
-def test_update_record_date(tracker):
+def test_update_record(tracker):
 
     tracker.create_user(1)
 
-    old = date(2026,9,1)
-    new = date(2026,9,2)
-
+    record_date = date(2026, 9, 1)
 
     tracker.save_record(
         1,
-        old,
+        record_date,
         5
     )
 
-
     tracker.update_record(
         1,
-        old,
-        new,
+        record_date,
         10
     )
 
-
     assert tracker.get_record(
         1,
-        old
-    ) is None
-
-
-    assert tracker.get_record(
-        1,
-        new
+        record_date
     ) == 10
 
 
+def test_update_record_rejects_unknown_user(tracker):
+
+    with pytest.raises(ValueError, match="User does not exist"):
+
+        tracker.update_record(
+            999,
+            date(2026, 9, 1),
+            10
+        )
 
 def test_delete_record(tracker):
 
@@ -165,6 +163,19 @@ def test_save_record_for_unknown_user(tracker):
         tracker.save_record(
             999,
             date.today(),
+            5
+        )
+
+def test_future_date_is_rejected(tracker):
+
+    tracker.create_user(1)
+
+    future_date = today() + timedelta(days=1)
+
+    with pytest.raises(ValueError):
+        tracker.save_record(
+            1,
+            future_date,
             5
         )
 

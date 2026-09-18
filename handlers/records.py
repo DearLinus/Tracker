@@ -157,7 +157,8 @@ async def start_new_record(
         "Send the date and count in this format:\n\n"
         "YYYY-MM-DD count\n\n"
         "Example:\n"
-        "2026-09-10 8",
+        "2026-09-10 8\n\n"
+        "⚠️ Future dates are not allowed.",
         reply_markup=BACK_KEYBOARD,
     )
 
@@ -255,8 +256,15 @@ async def save_new_record(
 
         reset_state(context)
 
+    except ValueError as e:
+        await update.message.reply_text(
+            f"⚠️ {e}",
+            reply_markup=BACK_KEYBOARD,
+        )
+        return
+
     except Exception:
-        logger.exception("Failed to save today's record")
+        logger.exception("Failed to save new record")
 
         await send_sticker_if_available(
             update,
@@ -266,7 +274,7 @@ async def save_new_record(
         reset_state(context)
 
         await update.message.reply_text(
-            "⚠ I couldn't save today's record.\n\n"
+            "⚠️ I couldn't save the record.\n\n"
             "Please try again later.",
             reply_markup=MAIN_KEYBOARD,
         )

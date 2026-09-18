@@ -1,6 +1,7 @@
 from datetime import date
 
 from database import TrackerDatabase
+from timezone import today as get_today
 
 
 class TrackerLogic:
@@ -13,6 +14,7 @@ class TrackerLogic:
 
     def __init__(self, db_path="tracker.db"):
         self.database = TrackerDatabase(db_path)
+
 
     # =========================================================
     # USERS
@@ -42,6 +44,8 @@ class TrackerLogic:
         return self.database.user_exists(
             user_id
         )
+
+
     # =========================================================
     # RECORDS
     # =========================================================
@@ -54,14 +58,10 @@ class TrackerLogic:
     ):
 
         self._validate_user_id(user_id)
-
-        if not self.user_exists(user_id):
-            raise ValueError(
-            "User does not exist."
-            )
-
-        self._validate_date(record_date)
+        self._validate_record_date(record_date)
         self._validate_count(count)
+
+        self._require_user(user_id)
 
         self.database.add_or_update_record(
             user_id,
@@ -69,20 +69,23 @@ class TrackerLogic:
             count
         )
 
+
     def update_record(
         self,
         user_id,
-        old_date,
-        new_date,
+        record_date,
         count
     ):
-        self._validate_date(old_date)
-        self._validate_date(new_date)
+
+        self._validate_user_id(user_id)
+        self._validate_record_date(record_date)
         self._validate_count(count)
+
+        self._require_user(user_id)
 
         old_record = self.database.get_record(
             user_id,
-            old_date
+            record_date
         )
 
         if old_record is None:
@@ -90,26 +93,9 @@ class TrackerLogic:
                 "The record you are trying to edit does not exist."
             )
 
-        if old_date != new_date:
-
-            new_record = self.database.get_record(
-                user_id,
-                new_date
-            )
-
-            if new_record is not None:
-                raise ValueError(
-                    "A record already exists for the new date."
-                )
-
-            self.database.delete_record(
-                user_id,
-                old_date
-            )
-
         self.database.add_or_update_record(
             user_id,
-            new_date,
+            record_date,
             count
         )
 
@@ -119,12 +105,23 @@ class TrackerLogic:
         user_id,
         record_date
     ):
+
+        self._validate_user_id(user_id)
         self._validate_date(record_date)
 
-        return self.database.delete_record(
+        self._require_user(user_id)
+
+        deleted = self.database.delete_record(
             user_id,
             record_date
         )
+
+        if not deleted:
+            raise ValueError(
+                "The record you are trying to delete does not exist."
+            )
+
+        return deleted
 
 
     def get_record(
@@ -132,7 +129,11 @@ class TrackerLogic:
         user_id,
         record_date
     ):
+
+        self._validate_user_id(user_id)
         self._validate_date(record_date)
+
+        self._require_user(user_id)
 
         return self.database.get_record(
             user_id,
@@ -144,6 +145,11 @@ class TrackerLogic:
         self,
         user_id
     ):
+
+        self._validate_user_id(user_id)
+
+        self._require_user(user_id)
+
         return self.database.get_records(
             user_id
         )
@@ -157,6 +163,7 @@ class TrackerLogic:
         self,
         user_id
     ):
+
         records = self.get_records(user_id)
 
         return sum(
@@ -168,6 +175,7 @@ class TrackerLogic:
         self,
         user_id
     ):
+
         records = self.get_records(user_id)
 
         if not records:
@@ -182,6 +190,7 @@ class TrackerLogic:
         self,
         user_id
     ):
+
         records = self.get_records(user_id)
 
         if not records:
@@ -202,6 +211,10 @@ class TrackerLogic:
         setting_key,
         default=None
     ):
+
+        self._validate_user_id(user_id)
+        self._require_user(user_id)
+
         value = self.database.get_setting(
             user_id,
             setting_key
@@ -219,6 +232,10 @@ class TrackerLogic:
         setting_key,
         setting_value
     ):
+
+        self._validate_user_id(user_id)
+        self._require_user(user_id)
+
         self.database.set_setting(
             user_id,
             setting_key,
@@ -262,6 +279,19 @@ class TrackerLogic:
             )
 
 
+    def _validate_record_date(
+        self,
+        record_date
+    ):
+
+        self._validate_date(record_date)
+
+        if record_date > get_today():
+            raise ValueError(
+                "Record date cannot be in the future."
+            )
+
+
     def _validate_count(
         self,
         count
@@ -275,4 +305,15 @@ class TrackerLogic:
         if count < 0:
             raise ValueError(
                 "count cannot be negative."
+            )
+
+
+    def _require_user(
+        self,
+        user_id
+    ):
+
+        if not self.database.user_exists(user_id):
+            raise ValueError(
+                "User does not exist."
             )

@@ -1,6 +1,6 @@
 from io import BytesIO
 
-from datetime import date, timedelta
+from datetime import timedelta
 from timezone import today as get_today
 
 import matplotlib
@@ -43,37 +43,34 @@ def create_graph(
     # Filter timeline
     # -------------------------------
 
-    all_dates = sorted(records.keys())
-
-    latest_date = all_dates[-1]
+    today = get_today()
 
     start_date = (
-        latest_date
+        today
         - timedelta(days=days - 1)
     )
-
 
     filtered = {
         d: count
         for d, count in records.items()
-        if start_date <= d <= latest_date
+        if start_date <= d <= today
     }
 
-
     if not filtered:
-        filtered = {
-            latest_date: records[latest_date]
-        }
+        return None
 
-
-    dates = sorted(filtered.keys())
-
-    counts = [
-        filtered[d]
-        for d in dates
+    # Keep every day in the selected range.
+    # Missing days are represented by None so matplotlib
+    # leaves gaps instead of drawing misleading lines.
+    dates = [
+        start_date + timedelta(days=i)
+        for i in range(days)
     ]
 
-
+    counts = [
+        filtered.get(d)
+        for d in dates
+    ]
     # -------------------------------
     # Theme
     # -------------------------------
@@ -241,12 +238,23 @@ def create_graph(
     # -------------------------------
 
     ax.yaxis.set_major_locator(
-        MaxNLocator(integer=True)
+    MaxNLocator(integer=True)
     )
 
+    valid_counts = [
+        count
+    for count in counts
+    if count is not None
+    ]
 
-    max_count = max(counts)
-    min_count = min(counts)
+    valid_counts = [
+        count
+        for count in counts
+        if count is not None
+    ]
+
+    max_count = max(valid_counts)
+    min_count = min(valid_counts)
 
 
     if max_count == min_count:
@@ -285,8 +293,6 @@ def create_graph(
     # Today guide
     # -------------------------------
 
-    today = get_today()
-
     if (
         today in records
         and today in filtered
@@ -305,35 +311,28 @@ def create_graph(
             / (x_max - x_min)
         )
 
-        # Horizontal red guide:
-        # from Y-axis → today's point
         ax.hlines(
-            today_count,
-            0,
-            today_position,
-            transform=ax.get_yaxis_transform(),
-            colors="red",
-            linestyles="--",
-            linewidth=1.2,
-            alpha=0.65,
-            zorder=2
-        )
+        today_count,
+        0,
+        today_position,
+        transform=ax.get_yaxis_transform(),
+        colors="red",
+        linestyles="--",
+        linewidth=1.2,
+        alpha=0.65,
+        zorder=2
+    )
 
-        # Vertical red guide:
-        # from X-axis → today's point
-        ax.vlines(
-            today,
-            lower,
-            today_count,
-            colors="red",
-            linestyles="--",
-            linewidth=1.2,
-            alpha=0.65,
-            zorder=2
-        )
-    
-
-
+    ax.vlines(
+        today,
+        lower,
+        today_count,
+        colors="red",
+        linestyles="--",
+        linewidth=1.2,
+        alpha=0.65,
+        zorder=2
+    )
     # -------------------------------
     # Grid and borders
     # -------------------------------
