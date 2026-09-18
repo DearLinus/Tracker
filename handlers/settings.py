@@ -3,46 +3,36 @@ from telegram.ext import ContextTypes
 
 from keyboards import MAIN_KEYBOARD, SETTINGS_KEYBOARD
 from services.tracker_service import tracker
-from handlers.utils import get_user_id, reset_state
+
+from handlers.utils import (
+    get_user_id,
+    reset_state,
+    get_graph_theme,
+)
+
 from handlers.constants import (
     SETTINGS,
     DARK_THEME,
     LIGHT_THEME,
-    GRAPH_THEMES,
 )
-
-# =========================================================
-# HELPERS
-# =========================================================
-# =========================================================
-# GRAPH THEME
-# =========================================================
-
-def get_graph_theme(update: Update):
-    user_id = get_user_id(update)
-
-    return tracker.get_setting(
-        user_id,
-        "graph_theme",
-        default="dark"
-    )
 
 
 async def show_settings(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
+
     reset_state(context)
 
     current_theme = get_graph_theme(update)
 
     theme_text = (
         "🌙 Dark"
-        if current_theme == "dark"
+        if current_theme == DARK_THEME
         else "☀️ Light"
     )
 
-    context.user_data["awaiting"] = "settings"
+    context.user_data["awaiting"] = SETTINGS
 
     await update.message.reply_text(
         "⚙️ Settings\n\n"
@@ -58,7 +48,6 @@ async def change_graph_theme(
     context: ContextTypes.DEFAULT_TYPE,
     theme: str,
 ):
-    
 
     user_id = get_user_id(update)
 
@@ -75,11 +64,15 @@ async def change_graph_theme(
             "🌙 Dark graph enabled.\n\n"
             "Your graph will now use the dark theme."
         )
-    else:
+
+    elif theme == LIGHT_THEME:
         message = (
             "☀️ Light graph enabled.\n\n"
             "Your graph will now use the light theme."
         )
+
+    else:
+        message = "⚠️ Invalid theme."
 
     await update.message.reply_text(
         message,

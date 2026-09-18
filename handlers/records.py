@@ -126,18 +126,18 @@ async def save_today_record(
     except Exception:
         logger.exception("Failed to save today's record")
 
-    await send_sticker_if_available(
-        update,
-        ERROR_STICKER_ID,
-    )
+        await send_sticker_if_available(
+            update,
+            ERROR_STICKER_ID,
+        )
 
-    reset_state(context)
+        reset_state(context)
 
-    await update.message.reply_text(
-        "⚠️ I couldn't save today's record.\n\n"
-        "Please try again later.",
-        reply_markup=MAIN_KEYBOARD,
-    )
+        await update.message.reply_text(
+            "⚠️ I couldn't save today's record.\n\n"
+            "Please try again later.",
+            reply_markup=MAIN_KEYBOARD,
+        )
 
 
 # =========================================================
@@ -256,17 +256,17 @@ async def save_new_record(
         reset_state(context)
 
     except Exception:
-        logger.exception("Failed to save a record")
+        logger.exception("Failed to save today's record")
 
-    await send_sticker_if_available(
-        update,
-        ERROR_STICKER_ID,
-    )
+        await send_sticker_if_available(
+            update,
+            ERROR_STICKER_ID,
+        )
 
-    reset_state(context)
+        reset_state(context)
 
-    await update.message.reply_text(
-        "⚠️ I couldn't save the record.\n\n"
-        "Please try again later.",
-        reply_markup=MAIN_KEYBOARD,
-    )
+        await update.message.reply_text(
+            "⚠ I couldn't save today's record.\n\n"
+            "Please try again later.",
+            reply_markup=MAIN_KEYBOARD,
+        )

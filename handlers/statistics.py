@@ -5,14 +5,16 @@ from keyboards import MAIN_KEYBOARD
 from services.tracker_service import tracker
 from handlers.utils import get_user_id, reset_state
 
-async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def show_statistics(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
     reset_state(context)
 
     user_id = get_user_id(update)
 
-    total = tracker.get_total(user_id)
-    average = tracker.get_average(user_id)
-    highest = tracker.get_highest(user_id)
     records = tracker.get_records(user_id)
 
     if not records:
@@ -22,6 +24,16 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=MAIN_KEYBOARD,
         )
         return
+
+
+    values = records.values()
+
+    total = sum(values)
+
+    average = total / len(records)
+
+    highest = max(values)
+
 
     await update.message.reply_text(
         "📊 Statistics\n\n"

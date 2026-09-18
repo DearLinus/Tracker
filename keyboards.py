@@ -1,40 +1,101 @@
 from telegram import ReplyKeyboardMarkup
 
+from handlers.constants import (
+    GRAPH_BUTTON,
+    TODAY_RECORD_BUTTON,
+    NEW_RECORD_BUTTON,
+    STATISTICS_BUTTON,
+    HISTORY_BUTTON,
+    SETTINGS_BUTTON,
+    BACK_BUTTON,
+
+    WEEKLY_BUTTON,
+    MONTHLY_BUTTON,
+    THREE_MONTHS_BUTTON,
+    SIX_MONTHS_BUTTON,
+    ONE_YEAR_BUTTON,
+
+    DARK_THEME_BUTTON,
+    LIGHT_THEME_BUTTON,
+)
+
+
+# =========================================================
+# Main keyboard
+# =========================================================
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
-        ["📈 Graph", "📝 Today Record"],
-        ["➕ New Record", "📊 Statistics"],
-        ["📜 History", "⚙️ Settings"],
+        [
+            GRAPH_BUTTON,
+            TODAY_RECORD_BUTTON,
+        ],
+        [
+            NEW_RECORD_BUTTON,
+            STATISTICS_BUTTON,
+        ],
+        [
+            HISTORY_BUTTON,
+            SETTINGS_BUTTON,
+        ],
+
     ],
     resize_keyboard=True,
-    is_persistent=True,
 )
 
+
+# =========================================================
+# Graph keyboard
+# =========================================================
 
 GRAPH_KEYBOARD = ReplyKeyboardMarkup(
     [
-        ["Weekly", "Monthly"],
-        ["3 Months", "6 Months"],
-        ["1 Year"],
-        ["⬅️ Back"],
+        [
+            WEEKLY_BUTTON,
+            MONTHLY_BUTTON,
+        ],
+        [
+            THREE_MONTHS_BUTTON,
+            SIX_MONTHS_BUTTON,
+        ],
+        [
+            ONE_YEAR_BUTTON,
+        ],
+        [
+            BACK_BUTTON,
+        ],
     ],
     resize_keyboard=True,
 )
 
+
+# =========================================================
+# Settings keyboard
+# =========================================================
 
 SETTINGS_KEYBOARD = ReplyKeyboardMarkup(
     [
-        ["🌙 Dark Graph", "☀️ Light Graph"],
-        ["⬅️ Back"],
+        [
+            DARK_THEME_BUTTON,
+            LIGHT_THEME_BUTTON,
+        ],
+        [
+            BACK_BUTTON,
+        ],
     ],
     resize_keyboard=True,
 )
 
 
+# =========================================================
+# Back keyboard
+# =========================================================
+
 BACK_KEYBOARD = ReplyKeyboardMarkup(
     [
-        ["⬅️ Back"],
+        [
+            BACK_BUTTON,
+        ],
     ],
     resize_keyboard=True,
 )

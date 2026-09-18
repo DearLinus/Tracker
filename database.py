@@ -143,6 +143,29 @@ class TrackerDatabase:
                 )
             )
 
+    def user_exists(
+        self,
+        telegram_id
+    ):
+        with self._get_connection() as connection:
+
+            cursor = connection.execute(
+                """
+                SELECT 1
+
+                FROM users
+
+                WHERE telegram_id = ?
+
+                LIMIT 1
+                """,
+                (
+                    str(telegram_id),
+                )
+            )
+
+            return cursor.fetchone() is not None
+
 
     # =========================================================
     # RECORDS
@@ -334,11 +357,3 @@ class TrackerDatabase:
                     setting_value
                 )
             )
-
-
-    # =========================================================
-    # CLOSE
-    # =========================================================
-
-    def close(self):
-        pass

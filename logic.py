@@ -18,14 +18,30 @@ class TrackerLogic:
     # USERS
     # =========================================================
 
-    def create_user(self, user_id, username=None):
+    def create_user(
+        self,
+        user_id,
+        username=None
+    ):
+
+        self._validate_user_id(user_id)
+
         self.database.create_user(
             user_id,
             username
         )
-        if user_id is None:
-            raise ValueError("user_id cannot be None")
 
+
+    def user_exists(
+        self,
+        user_id
+    ):
+
+        self._validate_user_id(user_id)
+
+        return self.database.user_exists(
+            user_id
+        )
     # =========================================================
     # RECORDS
     # =========================================================
@@ -36,6 +52,14 @@ class TrackerLogic:
         record_date,
         count
     ):
+
+        self._validate_user_id(user_id)
+
+        if not self.user_exists(user_id):
+            raise ValueError(
+            "User does not exist."
+            )
+
         self._validate_date(record_date)
         self._validate_count(count)
 
@@ -44,7 +68,6 @@ class TrackerLogic:
             record_date,
             count
         )
-
 
     def update_record(
         self,
@@ -68,6 +91,7 @@ class TrackerLogic:
             )
 
         if old_date != new_date:
+
             new_record = self.database.get_record(
                 user_id,
                 new_date
@@ -77,6 +101,11 @@ class TrackerLogic:
                 raise ValueError(
                     "A record already exists for the new date."
                 )
+
+            self.database.delete_record(
+                user_id,
+                old_date
+            )
 
         self.database.add_or_update_record(
             user_id,
@@ -144,7 +173,9 @@ class TrackerLogic:
         if not records:
             return 0
 
-        return self.get_total(user_id) / len(records)
+        return sum(
+            records.values()
+        ) / len(records)
 
 
     def get_highest(
@@ -199,27 +230,49 @@ class TrackerLogic:
     # VALIDATION
     # =========================================================
 
+    def _validate_user_id(
+        self,
+        user_id
+    ):
+
+        if user_id is None:
+            raise ValueError(
+                "user_id cannot be None."
+            )
+
+        if isinstance(user_id, bool):
+            raise TypeError(
+                "user_id cannot be boolean."
+            )
+
+        if not isinstance(user_id, int):
+            raise TypeError(
+                "user_id must be an integer."
+            )
+
+
     def _validate_date(
         self,
         record_date
     ):
+
         if not isinstance(record_date, date):
             raise TypeError(
                 "record_date must be a datetime.date object."
             )
 
 
-    def _validate_count(self, count):
+    def _validate_count(
+        self,
+        count
+    ):
+
         if isinstance(count, bool) or not isinstance(count, int):
-            raise TypeError("count must be an integer.")
-    
+            raise TypeError(
+                "count must be an integer."
+            )
+
         if count < 0:
-            raise ValueError("count cannot be negative.")
-
-
-    # =========================================================
-    # CLOSE
-    # =========================================================
-
-    def close(self):
-        self.database.close()
+            raise ValueError(
+                "count cannot be negative."
+            )
