@@ -1,5 +1,5 @@
 from datetime import datetime
-from timezone import today
+
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -12,6 +12,7 @@ from handlers.utils import (
     get_user_id,
     reset_state,
     send_sticker_if_available,
+    get_user_today,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ async def start_today_record(
 
     context.user_data["awaiting"] = "today_count"
 
-    today_date = today()
+    today_date = get_user_today(update)
     user_id = get_user_id(update)
 
     existing = tracker.get_record(
@@ -86,28 +87,16 @@ async def save_today_record(
         )
         return
 
-    today_date = today()
+    today_date = get_user_today(update)
 
     try:
-        existing = tracker.get_record(
+        # save_record is an upsert: it creates the record
+        # or overwrites the existing one for that date.
+        tracker.save_record(
             user_id,
-            today_date
+            today_date,
+            count
         )
-
-        if existing is None:
-            tracker.save_record(
-                user_id,
-                today_date,
-                count
-            )
-
-        else:
-            tracker.update_record(
-                user_id,
-                today_date,
-                today_date,
-                count
-            )
 
         await send_sticker_if_available(
             update,
@@ -222,24 +211,15 @@ async def save_new_record(
             record_date
         )
 
-        if existing is None:
-            tracker.save_record(
-                user_id,
-                record_date,
-                count
-            )
+        # save_record is an upsert, so one call covers both cases.
+        # `existing` is only used to pick the wording of the reply.
+        tracker.save_record(
+            user_id,
+            record_date,
+            count
+        )
 
-            action = "Added"
-
-        else:
-            tracker.update_record(
-                user_id,
-                record_date,
-                record_date,
-                count
-            )
-
-            action = "Updated"
+        action = "Added" if existing is None else "Updated"
 
         await send_sticker_if_available(
             update,

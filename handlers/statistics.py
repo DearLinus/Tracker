@@ -15,9 +15,9 @@ async def show_statistics(
 
     user_id = get_user_id(update)
 
-    records = tracker.get_records(user_id)
+    stats = tracker.get_statistics(user_id)
 
-    if not records:
+    if stats["days"] == 0:
         await update.message.reply_text(
             "📊 Statistics\n\n"
             "You don't have any records yet.",
@@ -26,20 +26,11 @@ async def show_statistics(
         return
 
 
-    values = records.values()
-
-    total = sum(values)
-
-    average = total / len(records)
-
-    highest = max(values)
-
-
     await update.message.reply_text(
         "📊 Statistics\n\n"
-        f"📅 Recorded days: {len(records)}\n"
-        f"🔢 Total: {total}\n"
-        f"📈 Average: {average:.2f}\n"
-        f"🏆 Highest: {highest}",
+        f"📅 Recorded days: {stats['days']}\n"
+        f"🔢 Total: {stats['total']}\n"
+        f"📈 Average: {stats['average']:.2f}\n"
+        f"🏆 Highest: {stats['highest']}",
         reply_markup=MAIN_KEYBOARD,
     )

@@ -2,7 +2,7 @@ import pytest
 
 from logic import TrackerLogic
 from datetime import date, timedelta
-from timezone import today
+from timezone import get_today
 
 @pytest.fixture
 def tracker(tmp_path):
@@ -170,7 +170,7 @@ def test_future_date_is_rejected(tracker):
 
     tracker.create_user(1)
 
-    future_date = today() + timedelta(days=1)
+    future_date = get_today() + timedelta(days=1)
 
     with pytest.raises(ValueError):
         tracker.save_record(

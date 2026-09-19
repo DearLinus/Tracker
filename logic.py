@@ -1,9 +1,10 @@
 from datetime import date
 
 from database import TrackerDatabase
-from timezone import today as get_today, DEFAULT_TIMEZONE
-
-
+from timezone import (
+    get_today,
+    DEFAULT_TIMEZONE
+)
 class TrackerLogic:
     """
     Application logic for the tracker.
@@ -33,11 +34,18 @@ class TrackerLogic:
             username
         )
 
-        self.database.set_setting(
+        timezone = self.database.get_setting(
             user_id,
-            "timezone",
-            "Asia/Tehran"
+            "timezone"
         )
+
+        if timezone is None:
+
+            self.database.set_setting(
+                user_id,
+                "timezone",
+                DEFAULT_TIMEZONE
+            )
 
 
     def user_exists(
@@ -215,7 +223,26 @@ class TrackerLogic:
         return max(
             records.values()
         )
+    def get_statistics(self, user_id):
 
+        records = self.get_records(user_id)
+
+        if not records:
+            return {
+                "days": 0,
+                "total": 0,
+                "average": 0,
+                "highest": 0,
+            }
+
+        values = records.values()
+
+        return {
+            "days": len(records),
+            "total": sum(values),
+            "average": sum(values) / len(records),
+            "highest": max(values),
+        }
 
     # =========================================================
     # SETTINGS

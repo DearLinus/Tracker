@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import date
+from contextlib import contextmanager
 
 
 class TrackerDatabase:
@@ -8,62 +9,96 @@ class TrackerDatabase:
     Designed for Telegram bot usage.
     """
 
-    def __init__(self, db_path="tracker.db"):
+
+    def __init__(
+        self,
+        db_path="tracker.db"
+    ):
         self.db_path = db_path
 
         self._initialize_database()
+
 
 
     # =========================================================
     # CONNECTION
     # =========================================================
 
+
     def _get_connection(self):
 
         connection = sqlite3.connect(
             self.db_path,
-            timeout=30
+            timeout=30,
         )
+
+        connection.row_factory = sqlite3.Row
 
         connection.execute(
             "PRAGMA foreign_keys = ON"
         )
 
+        connection.execute(
+            "PRAGMA busy_timeout = 30000"
+        )
+
         return connection
+
+
+
+    @contextmanager
+    def connection(self):
+
+        conn = self._get_connection()
+
+        try:
+            yield conn
+
+        finally:
+            conn.close()
+
 
 
     def _initialize_database(self):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             connection.execute(
                 "PRAGMA journal_mode=WAL"
             )
 
-            self._create_tables(connection)
-            self._create_indexes(connection)
+            self._create_tables(
+                connection
+            )
+
 
 
     # =========================================================
     # TABLES
     # =========================================================
 
+
     def _create_tables(
         self,
         connection
     ):
 
+
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
 
-                telegram_id TEXT PRIMARY KEY,
+                telegram_id INTEGER PRIMARY KEY,
+
                 username TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+
+                created_at TEXT
+                DEFAULT CURRENT_TIMESTAMP
 
             )
             """
         )
+
 
 
         connection.execute(
@@ -72,38 +107,52 @@ class TrackerDatabase:
 
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-                user_id TEXT NOT NULL,
+
+                user_id INTEGER NOT NULL,
+
                 record_date TEXT NOT NULL,
-                count INTEGER NOT NULL CHECK(count >= 0),
+
+                count INTEGER NOT NULL
+                CHECK(count >= 0),
+
 
                 FOREIGN KEY(user_id)
                 REFERENCES users(telegram_id)
+
                 ON DELETE CASCADE,
 
-                UNIQUE(user_id, record_date)
+
+                UNIQUE(
+                    user_id,
+                    record_date
+                )
 
             )
             """
         )
 
 
+
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS settings (
 
-                user_id TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
 
                 setting_key TEXT NOT NULL,
 
                 setting_value TEXT NOT NULL,
+
 
                 PRIMARY KEY(
                     user_id,
                     setting_key
                 ),
 
+
                 FOREIGN KEY(user_id)
                 REFERENCES users(telegram_id)
+
                 ON DELETE CASCADE
 
             )
@@ -111,30 +160,11 @@ class TrackerDatabase:
         )
 
 
-    def _create_indexes(
-        self,
-        connection
-    ):
-
-        connection.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_records_user
-            ON records(user_id)
-            """
-        )
-
-
-        connection.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_records_date
-            ON records(record_date)
-            """
-        )
-
 
     # =========================================================
     # USERS
     # =========================================================
+
 
     def create_user(
         self,
@@ -142,7 +172,7 @@ class TrackerDatabase:
         username=None
     ):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             connection.execute(
                 """
@@ -156,10 +186,11 @@ class TrackerDatabase:
 
                 """,
                 (
-                    str(telegram_id),
+                    telegram_id,
                     username
                 )
             )
+
 
 
     def user_exists(
@@ -167,7 +198,7 @@ class TrackerDatabase:
         telegram_id
     ):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             cursor = connection.execute(
                 """
@@ -178,9 +209,10 @@ class TrackerDatabase:
                 WHERE telegram_id = ?
 
                 LIMIT 1
+
                 """,
                 (
-                    str(telegram_id),
+                    telegram_id,
                 )
             )
 
@@ -192,6 +224,7 @@ class TrackerDatabase:
     # RECORDS
     # =========================================================
 
+
     def add_or_update_record(
         self,
         user_id,
@@ -199,7 +232,7 @@ class TrackerDatabase:
         count
     ):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             connection.execute(
                 """
@@ -212,7 +245,11 @@ class TrackerDatabase:
 
                 VALUES (?, ?, ?)
 
-                ON CONFLICT(user_id, record_date)
+
+                ON CONFLICT(
+                    user_id,
+                    record_date
+                )
 
                 DO UPDATE SET
 
@@ -220,11 +257,12 @@ class TrackerDatabase:
 
                 """,
                 (
-                    str(user_id),
+                    user_id,
                     record_date.isoformat(),
                     count
                 )
             )
+
 
 
     def get_record(
@@ -233,7 +271,7 @@ class TrackerDatabase:
         record_date
     ):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             cursor = connection.execute(
                 """
@@ -247,7 +285,7 @@ class TrackerDatabase:
 
                 """,
                 (
-                    str(user_id),
+                    user_id,
                     record_date.isoformat()
                 )
             )
@@ -256,7 +294,7 @@ class TrackerDatabase:
             row = cursor.fetchone()
 
 
-            return None if row is None else row[0]
+            return None if row is None else row["count"]
 
 
 
@@ -265,11 +303,13 @@ class TrackerDatabase:
         user_id
     ):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             cursor = connection.execute(
                 """
-                SELECT record_date, count
+                SELECT
+                    record_date,
+                    count
 
                 FROM records
 
@@ -279,7 +319,7 @@ class TrackerDatabase:
 
                 """,
                 (
-                    str(user_id),
+                    user_id,
                 )
             )
 
@@ -287,11 +327,13 @@ class TrackerDatabase:
             records = {}
 
 
-            for record_date, count in cursor.fetchall():
+            for row in cursor.fetchall():
 
                 records[
-                    date.fromisoformat(record_date)
-                ] = count
+                    date.fromisoformat(
+                        row["record_date"]
+                    )
+                ] = row["count"]
 
 
             return records
@@ -304,7 +346,7 @@ class TrackerDatabase:
         record_date
     ):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             cursor = connection.execute(
                 """
@@ -316,7 +358,7 @@ class TrackerDatabase:
 
                 """,
                 (
-                    str(user_id),
+                    user_id,
                     record_date.isoformat()
                 )
             )
@@ -337,13 +379,14 @@ class TrackerDatabase:
     # SETTINGS
     # =========================================================
 
+
     def get_setting(
         self,
         user_id,
         setting_key
     ):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             cursor = connection.execute(
                 """
@@ -357,7 +400,7 @@ class TrackerDatabase:
 
                 """,
                 (
-                    str(user_id),
+                    user_id,
                     setting_key
                 )
             )
@@ -366,7 +409,11 @@ class TrackerDatabase:
             row = cursor.fetchone()
 
 
-            return None if row is None else row[0]
+            return (
+                None
+                if row is None
+                else row["setting_value"]
+            )
 
 
 
@@ -377,7 +424,7 @@ class TrackerDatabase:
         setting_value
     ):
 
-        with self._get_connection() as connection:
+        with self.connection() as connection:
 
             connection.execute(
                 """
@@ -391,8 +438,10 @@ class TrackerDatabase:
                 VALUES (?, ?, ?)
 
 
-                ON CONFLICT(user_id, setting_key)
-
+                ON CONFLICT(
+                    user_id,
+                    setting_key
+                )
 
                 DO UPDATE SET
 
@@ -401,7 +450,7 @@ class TrackerDatabase:
 
                 """,
                 (
-                    str(user_id),
+                    user_id,
                     setting_key,
                     setting_value
                 )

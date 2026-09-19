@@ -1,3 +1,5 @@
+# timezone.py
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -5,7 +7,7 @@ from zoneinfo import ZoneInfo
 DEFAULT_TIMEZONE = "Asia/Tehran"
 
 
-def today(timezone=DEFAULT_TIMEZONE):
+def get_today(timezone_name: str = DEFAULT_TIMEZONE):
     return datetime.now(
-        ZoneInfo(timezone)
+        ZoneInfo(timezone_name)
     ).date()
