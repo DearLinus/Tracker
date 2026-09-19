@@ -256,7 +256,9 @@ class TrackerLogic:
     ):
 
         self._validate_user_id(user_id)
-        self._require_user(user_id)
+
+        if not self.database.user_exists(user_id):
+            return default
 
         value = self.database.get_setting(
             user_id,
