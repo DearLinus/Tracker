@@ -1,8 +1,11 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-TIMEZONE = "Europe/London"
+
+DEFAULT_TIMEZONE = "Asia/Tehran"
 
 
-def today():
-    return datetime.now(ZoneInfo(TIMEZONE)).date()
+def today(timezone=DEFAULT_TIMEZONE):
+    return datetime.now(
+        ZoneInfo(timezone)
+    ).date()

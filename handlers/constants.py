@@ -57,3 +57,9 @@ GRAPH_TIMELINE = "graph_timeline"
 SETTINGS = "settings"
 TODAY_COUNT = "today_count"
 NEW_RECORD = "new_record"
+
+
+# =========================================================
+# Timezone
+# =========================================================
+DEFAULT_TIMEZONE = "Asia/Tehran"

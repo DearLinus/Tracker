@@ -5,6 +5,7 @@ from handlers.utils import (
     get_user_id,
     reset_state,
     get_graph_theme,
+    get_user_today,
 )
 import logging
 
@@ -62,11 +63,12 @@ async def send_graph(
         theme = get_graph_theme(update)
 
         graph_image = create_graph(
-            tracker,
-            user_id=get_user_id(update),
-            timeline=timeline_name,
-            theme=theme,
-        )
+        tracker,
+        user_id=get_user_id(update),
+        timeline=timeline_name,
+        theme=theme,
+        today=get_user_today(update),
+    )
 
         if graph_image is None:
 

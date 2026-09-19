@@ -1,0 +1,47 @@
+[33mcommit ebd1bb1c55460649b5f46c5cb370201cfc26dc62[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtelegram-bot[m[33m, [m[1;31morigin/telegram-bot[m[33m)[m
+Author: Linus <yourdearinus@gmail.com>
+Date:   Fri Sep 18 23:48:47 2026 +0330
+
+    Add handler tests and improve sticker mocking fixture
+
+[33mcommit 7dc3e41e5dc23d537bdf0fc2078f106641e2db15[m
+Author: Linus <yourdearinus@gmail.com>
+Date:   Fri Sep 18 06:53:51 2026 +0330
+
+    add logging and README
+
+[33mcommit b2a54ae4d4fc4eb99f51345df0bf9f72fb272f80[m
+Author: Linus <yourdearinus@gmail.com>
+Date:   Tue Sep 15 03:03:00 2026 +0330
+
+    Update tracker bot and fixes
+
+[33mcommit dc6d30e4636750fa4787c4323e08bf34085cca6f[m[33m ([m[1;33mtag: [m[1;33mdesktop-v1.0[m[33m, [m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m
+Author: DearLinus <yourdearlinus@gmail.com>
+Date:   Sat Sep 12 00:13:26 2026 +0330
+
+    update6
+
+[33mcommit 442353bb32f343930353f243cab5e4ec296b61dc[m
+Author: DearLinus <yourdearlinus@gmail.com>
+Date:   Fri Sep 11 23:37:19 2026 +0330
+
+    update2
+
+[33mcommit c7f3d447d1d896f603d4c27631543247c2f1d698[m
+Author: DearLinus <yourdearlinus@gmail.com>
+Date:   Fri Sep 11 23:19:36 2026 +0330
+
+    update
+
+[33mcommit 5f46e4fdbc06b0a3981337d009819e878b2e8837[m
+Author: DearLinus <yourdearlinus@gmail.com>
+Date:   Fri Sep 11 23:07:26 2026 +0330
+
+    big update
+
+[33mcommit 97ceea40dc14fb2e81bd17c82bdd61b1a9677544[m
+Author: DearLinus <yourdearlinus@gmail.com>
+Date:   Fri Sep 11 21:59:56 2026 +0330
+
+    Update tracker logic

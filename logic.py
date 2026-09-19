@@ -1,7 +1,7 @@
 from datetime import date
 
 from database import TrackerDatabase
-from timezone import today as get_today
+from timezone import today as get_today, DEFAULT_TIMEZONE
 
 
 class TrackerLogic:
@@ -33,6 +33,12 @@ class TrackerLogic:
             username
         )
 
+        self.database.set_setting(
+            user_id,
+            "timezone",
+            "Asia/Tehran"
+        )
+
 
     def user_exists(
         self,
@@ -58,7 +64,12 @@ class TrackerLogic:
     ):
 
         self._validate_user_id(user_id)
-        self._validate_record_date(record_date)
+
+        self._validate_record_date(
+        user_id,
+        record_date
+        )
+
         self._validate_count(count)
 
         self._require_user(user_id)
@@ -78,7 +89,12 @@ class TrackerLogic:
     ):
 
         self._validate_user_id(user_id)
-        self._validate_record_date(record_date)
+
+        self._validate_record_date(
+        user_id,
+        record_date
+        )
+        
         self._validate_count(count)
 
         self._require_user(user_id)
@@ -281,12 +297,19 @@ class TrackerLogic:
 
     def _validate_record_date(
         self,
+        user_id,
         record_date
     ):
 
         self._validate_date(record_date)
+        timezone = self.get_setting(
+        user_id,
+        "timezone",
+        DEFAULT_TIMEZONE
+        )
 
-        if record_date > get_today():
+        if record_date > get_today(timezone):
+        
             raise ValueError(
                 "Record date cannot be in the future."
             )

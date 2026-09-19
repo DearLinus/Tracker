@@ -1,5 +1,9 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from telegram import Update
 from telegram.ext import ContextTypes
+
 from services.tracker_service import tracker
 
 def get_user_id(update: Update):
@@ -26,3 +30,28 @@ def get_graph_theme(update):
         "graph_theme",
         default="dark",
     )
+
+DEFAULT_TIMEZONE = "Asia/Tehran"
+
+
+def get_user_timezone(update):
+
+    user_id = get_user_id(update)
+
+    timezone = tracker.get_setting(
+        user_id,
+        "timezone",
+        DEFAULT_TIMEZONE
+    )
+
+    return timezone
+
+
+
+def get_user_today(update):
+
+    timezone = get_user_timezone(update)
+
+    return datetime.now(
+        ZoneInfo(timezone)
+    ).date()
