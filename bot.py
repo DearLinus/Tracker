@@ -58,6 +58,7 @@ async def error_handler(
 ):
     logger.error(
         "Exception while handling update",
+
         exc_info=context.error,
     )
 
