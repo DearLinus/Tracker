@@ -268,6 +268,20 @@ class TrackerDatabase:
 
             return True
 
+    def delete_user(self, user_id):
+        with self.connection() as connection:
+            cursor = connection.execute(
+                """
+                DELETE FROM users
+
+                WHERE telegram_id = ?
+                """,
+                (
+                    user_id,
+                ),
+            )
+            return cursor.rowcount > 0
+
     # =========================================================
     # SETTINGS
     # =========================================================

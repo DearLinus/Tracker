@@ -1,10 +1,11 @@
 import sqlite3
+import sys
 
 import pytest
 from datetime import date
 
 from database import TrackerDatabase
-from backup import backup_database, restore_database
+from backup import backup_database, restore_database, main as backup_main
 
 
 @pytest.fixture
@@ -36,6 +37,68 @@ def test_backup_database_creates_backup(tmp_path):
     with sqlite3.connect(backup_path) as conn:
         row = conn.execute("SELECT COUNT(*) FROM test").fetchone()
     assert row[0] == 1
+
+
+def test_delete_user_removes_user_and_related_data(database):
+    database.create_user(10, "tester")
+    database.set_setting(10, "graph_theme", "dark")
+    database.add_or_update_record(10, date(2026, 9, 1), 5)
+
+    database.delete_user(10)
+
+    assert database.user_exists(10) is False
+    assert database.get_setting(10, "graph_theme") is None
+    assert database.get_record(10, date(2026, 9, 1)) is None
+
+
+def test_backup_cli_creates_backup(tmp_path, monkeypatch):
+    source = tmp_path / "data" / "tracker.db"
+    backup_dir = tmp_path / "backups"
+    source.parent.mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(source) as conn:
+        conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO test (id) VALUES (1)")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["backup.py", "backup", "--db-path", str(source), "--backup-dir", str(backup_dir)],
+    )
+
+    backup_main()
+
+    assert backup_dir.exists()
+    assert any(backup_dir.iterdir())
+
+
+def test_backup_cli_restores_backup(tmp_path, monkeypatch):
+    source = tmp_path / "data" / "tracker.db"
+    backup_dir = tmp_path / "backups"
+    source.parent.mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(source) as conn:
+        conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)")
+        conn.execute("INSERT INTO test (value) VALUES ('before')")
+
+    backup_path = backup_database(str(source), str(backup_dir))
+
+    with sqlite3.connect(source) as conn:
+        conn.execute("DELETE FROM test")
+        conn.execute("INSERT INTO test (value) VALUES ('after')")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["backup.py", "restore", "--db-path", str(source), "--backup-file", str(backup_path)],
+    )
+
+    backup_main()
+
+    with sqlite3.connect(source) as conn:
+        values = conn.execute("SELECT value FROM test").fetchall()
+
+    assert values == [("before",)]
 
 
 def test_create_user_is_idempotent(database):

@@ -1,3 +1,4 @@
+import os
 from datetime import date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -25,8 +26,9 @@ class TrackerLogic:
     It does not know anything about Telegram.
     """
 
-    def __init__(self, db_path="tracker.db"):
-        self.database = TrackerDatabase(db_path)
+    def __init__(self, db_path=None):
+        resolved_path = db_path or os.getenv("DATABASE_PATH", "tracker.db")
+        self.database = TrackerDatabase(resolved_path)
 
 
     # =========================================================
@@ -158,6 +160,21 @@ class TrackerLogic:
             )
 
         return deleted
+
+    def delete_user(
+        self,
+        user_id
+    ):
+
+        self._validate_user_id(user_id)
+        self._require_user(user_id)
+
+        deleted = self.database.delete_user(user_id)
+
+        if not deleted:
+            raise ValueError("User does not exist.")
+
+        return True
 
 
     def get_record(
