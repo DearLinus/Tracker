@@ -67,8 +67,10 @@ async def test_history_shows_records(monkeypatch):
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
+    from timezone import DEFAULT_TIMEZONE
+
     today = datetime.now(
-        ZoneInfo("Europe/London")
+        ZoneInfo(DEFAULT_TIMEZONE)
     ).date()
 
 
@@ -90,6 +92,32 @@ async def test_history_shows_records(monkeypatch):
         "8"
         in update.message.replies[0]
     )
+
+
+@pytest.mark.asyncio
+async def test_history_marks_missing_days_as_no_record(monkeypatch):
+
+    update = FakeUpdate()
+    context = FakeContext()
+
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from timezone import DEFAULT_TIMEZONE
+
+    today = datetime.now(ZoneInfo(DEFAULT_TIMEZONE)).date()
+    recent_day = today - __import__("datetime").timedelta(days=1)
+
+    monkeypatch.setattr(
+        "handlers.history.tracker.get_records",
+        lambda *args: {recent_day: 8}
+    )
+
+    await show_history(update, context)
+
+    text = update.message.replies[0]
+    assert "No record" in text
+    assert f"{recent_day.strftime('%Y-%m-%d')} → 8" in text
 
 
 @pytest.mark.asyncio

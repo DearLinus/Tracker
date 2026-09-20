@@ -1,12 +1,16 @@
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import timedelta
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from keyboards import HISTORY_KEYBOARD
 from services.tracker_service import tracker
-from handlers.utils import get_user_id, reset_state
+
+from handlers.utils import (
+    get_user_id,
+    reset_state,
+    get_user_today,
+)
 
 
 async def show_history(
@@ -23,22 +27,18 @@ async def show_history(
         "📜 Last 7 Days\n"
     ]
 
-    today = datetime.now(
-        ZoneInfo("Europe/London")
-    ).date()
+    today = get_user_today(update)
 
     has_record = False
 
     for i in range(7):
         current_date = today - timedelta(days=i)
 
-        count = records.get(
-            current_date,
-            0
-        )
-
         if current_date in records:
             has_record = True
+            count = records[current_date]
+        else:
+            count = "No record"
 
         lines.append(
             f"{current_date.strftime('%Y-%m-%d')} → {count}"

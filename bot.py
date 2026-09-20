@@ -1,5 +1,5 @@
-import os
 import logging
+from pathlib import Path
 
 from handlers import register_handlers
 from handlers.router import handle_text
@@ -9,6 +9,10 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(exist_ok=True)
+
 
 class ColoredFormatter(logging.Formatter):
 
@@ -28,24 +32,30 @@ class ColoredFormatter(logging.Formatter):
         return f"{color}{message}{self.RESET}"
 
 
-handler = logging.StreamHandler()
-
-handler.setFormatter(
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(
     ColoredFormatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+)
+
+file_handler = logging.FileHandler(LOG_DIR / "tracker.log", encoding="utf-8")
+file_handler.setFormatter(
+    logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 )
 
 logging.basicConfig(
     level=logging.INFO,
-    handlers=[handler],
+    handlers=[stream_handler, file_handler],
+    force=True,
 )
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("tracker.bot")
 
 
 # =========================================================
@@ -87,8 +97,9 @@ def main():
 
     if not token:
         raise RuntimeError(
-        "TELEGRAM_BOT_TOKEN is not configured."
-    )
+            "TELEGRAM_BOT_TOKEN is not configured."
+        )
+
     app = (
         Application
         .builder()

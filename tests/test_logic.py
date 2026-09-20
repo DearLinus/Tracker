@@ -197,6 +197,17 @@ def test_negative_count(tracker):
         )
 
 
+def test_count_over_maximum_is_rejected(tracker):
+
+    tracker.create_user(1)
+
+    with pytest.raises(ValueError, match="1000"):
+        tracker.save_record(
+            1,
+            date.today(),
+            1001,
+        )
+
 
 def test_boolean_count(tracker):
 

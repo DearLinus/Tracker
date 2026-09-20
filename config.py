@@ -4,19 +4,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-TELEGRAM_BOT_TOKEN = os.getenv(
-    "TELEGRAM_BOT_TOKEN"
-)
+def get_env_value(name: str, *, required: bool = False, default: str | None = None):
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        if required:
+            raise ValueError(f"Missing required environment variable: {name}")
+        return default
+
+    return value.strip()
 
 
-WELCOME_STICKER_ID = os.getenv(
-    "WELCOME_STICKER_ID"
-)
-
-SUCCESS_STICKER_ID = os.getenv(
-    "SUCCESS_STICKER_ID"
-)
-
-ERROR_STICKER_ID = os.getenv(
-    "ERROR_STICKER_ID"
-)
+TELEGRAM_BOT_TOKEN = get_env_value("TELEGRAM_BOT_TOKEN")
+WELCOME_STICKER_ID = get_env_value("WELCOME_STICKER_ID")
+SUCCESS_STICKER_ID = get_env_value("SUCCESS_STICKER_ID")
+ERROR_STICKER_ID = get_env_value("ERROR_STICKER_ID")

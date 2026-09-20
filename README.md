@@ -9,7 +9,7 @@ A Telegram bot for tracking daily records, viewing statistics, reviewing history
 - Add a record for any date.
 - Record today's value directly.
 - Update existing records.
-- Delete records through the tracking logic.
+- Delete records from the logic layer when needed.
 - Input validation for dates and values.
 
 ### 📊 Statistics
@@ -23,7 +23,7 @@ View:
 
 ### 📜 History
 
-View all recorded values, sorted from the newest date to the oldest.
+Review recent activity for the last 7 days, including days with saved records. Empty days are displayed as `No record` instead of `0` to make missing data explicit.
 
 ### 📈 Graphs
 
@@ -60,13 +60,13 @@ are kept separate using their Telegram user ID.
 
 ### 🌍 Timezone
 
-The bot uses:
+The bot currently defaults to:
 
 ```text
-Europe/London
-````
+Asia/Tehran
+```
 
-as its common timezone when determining the current date.
+for the current-date calculation. Users can also keep their own timezone override in settings, and the project is structured so more timezone-aware behavior can be added without changing the whole app.
 
 ### ⚠️ Error Handling
 
@@ -76,6 +76,7 @@ The bot includes:
 * User-friendly error messages
 * Global Telegram error handling
 * Internal exception logging
+* Safe environment-based secret loading via `.env`
 
 Internal errors are logged instead of exposing raw exceptions to users.
 
@@ -104,30 +105,53 @@ Log levels are displayed using different terminal colors for easier monitoring.
 ```text
 tracker/
 │
+├── backup.py
 ├── bot.py
 ├── config.py
-├── keyboards.py
-├── timezone.py
-├── logic.py
-├── graph.py
 ├── database.py
+├── graph.py
+├── keyboards.py
+├── logic.py
+├── README.md
+├── requirements.txt
+├── timezone.py
+├── version.py
 │
 ├── handlers/
 │   ├── __init__.py
 │   ├── constants.py
-│   ├── utils.py
-│   ├── start.py
-│   ├── records.py
+│   ├── export.py
 │   ├── graph.py
-│   ├── settings.py
-│   ├── statistics.py
 │   ├── history.py
 │   ├── navigation.py
-│   └── router.py
+│   ├── records.py
+│   ├── router.py
+│   ├── settings.py
+│   ├── start.py
+│   ├── statistics.py
+│   └── utils.py
 │
-└── services/
+├── services/
+│   ├── __init__.py
+│   └── tracker_service.py
+│
+└── tests/
     ├── __init__.py
-    └── tracker_service.py
+    ├── conftest.py
+    ├── test_database.py
+    ├── test_export_handler.py
+    ├── test_graph.py
+    ├── test_graph_handler.py
+    ├── test_history_handler.py
+    ├── test_keyboards.py
+    ├── test_logic.py
+    ├── test_records_handler.py
+    ├── test_records_integration.py
+    ├── test_router.py
+    ├── test_settings_handler.py
+    ├── test_start_handler.py
+    ├── test_statistics_handler.py
+    └── test_utils.py
 ```
 
 ## Architecture
@@ -182,7 +206,11 @@ It handles:
 
 Handles SQLite database operations.
 
-The database stores user-specific records and settings.
+The database stores user-specific records and settings using a migration-aware schema, indexes, and transactional commits/rollbacks.
+
+### `backup.py`
+
+Provides backup and restore helpers built on SQLite's native `backup()` API so database copies remain consistent while the database is in use.
 
 ### `graph.py`
 
@@ -283,6 +311,20 @@ After starting the bot with `/start`, the main menu provides:
 The Telegram bot uses SQLite for persistent storage.
 
 Records and settings are associated with each Telegram user's ID, allowing multiple users to use the same bot independently.
+
+A small backup flow is already supported through the helper functions in `backup.py`.
+
+### Backup helper
+
+You can create a SQLite-safe backup like this:
+
+```bash
+python -c "from backup import backup_database; print(backup_database('tracker.db', 'backups'))"
+```
+
+This creates a timestamped backup in the `backups/` folder using SQLite's native backup mechanism.
+
+For a simple scheduled flow, you can run the same command from a cron job or systemd timer, for example every night at 02:00.
 
 ## Development
 

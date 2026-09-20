@@ -152,3 +152,30 @@ async def test_router_saves_today_record_when_waiting(monkeypatch):
 
 
     assert called == [True]
+
+
+@pytest.mark.asyncio
+async def test_router_allows_menu_action_while_waiting(monkeypatch):
+
+    update = FakeUpdate("📈 Graph")
+    context = FakeContext()
+    context.user_data["awaiting"] = "today_count"
+
+    monkeypatch.setattr(
+        "handlers.router.tracker.user_exists",
+        lambda user_id: True
+    )
+
+    called = []
+
+    async def fake_show_graph_menu(update, context):
+        called.append(True)
+
+    monkeypatch.setattr(
+        "handlers.router.show_graph_menu",
+        fake_show_graph_menu
+    )
+
+    await handle_text(update, context)
+
+    assert called == [True]

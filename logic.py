@@ -1,10 +1,22 @@
 from datetime import date
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from database import TrackerDatabase
 from timezone import (
     get_today,
     DEFAULT_TIMEZONE
 )
+
+USER_ID_REQUIRED_MESSAGE = "user_id cannot be None."
+USER_ID_BOOL_MESSAGE = "user_id cannot be boolean."
+USER_ID_TYPE_MESSAGE = "user_id must be an integer."
+DATE_TYPE_MESSAGE = "record_date must be a datetime.date object."
+COUNT_TYPE_MESSAGE = "count must be an integer."
+COUNT_NEGATIVE_MESSAGE = "count cannot be negative."
+COUNT_TOO_HIGH_MESSAGE = "count cannot exceed 1000."
+FUTURE_DATE_MESSAGE = "Record date cannot be in the future."
+
+
 class TrackerLogic:
     """
     Application logic for the tracker.
@@ -298,20 +310,13 @@ class TrackerLogic:
     ):
 
         if user_id is None:
-            raise ValueError(
-                "user_id cannot be None."
-            )
+            raise ValueError(USER_ID_REQUIRED_MESSAGE)
 
         if isinstance(user_id, bool):
-            raise TypeError(
-                "user_id cannot be boolean."
-            )
+            raise TypeError(USER_ID_BOOL_MESSAGE)
 
         if not isinstance(user_id, int):
-            raise TypeError(
-                "user_id must be an integer."
-            )
-
+            raise TypeError(USER_ID_TYPE_MESSAGE)
 
     def _validate_date(
         self,
@@ -319,10 +324,28 @@ class TrackerLogic:
     ):
 
         if not isinstance(record_date, date):
-            raise TypeError(
-                "record_date must be a datetime.date object."
-            )
+            raise TypeError(DATE_TYPE_MESSAGE)
 
+    def _validate_timezone_name(self, timezone_name):
+        if timezone_name is None:
+            return DEFAULT_TIMEZONE
+
+        try:
+            ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError as exc:
+            raise ZoneInfoNotFoundError(
+                f"Unknown timezone: {timezone_name}"
+            ) from exc
+
+        return timezone_name
+
+    def _resolve_user_timezone(self, user_id):
+        timezone_name = self.get_setting(
+            user_id,
+            "timezone",
+            DEFAULT_TIMEZONE,
+        )
+        return self._validate_timezone_name(timezone_name)
 
     def _validate_record_date(
         self,
@@ -331,18 +354,10 @@ class TrackerLogic:
     ):
 
         self._validate_date(record_date)
-        timezone = self.get_setting(
-        user_id,
-        "timezone",
-        DEFAULT_TIMEZONE
-        )
+        timezone_name = self._resolve_user_timezone(user_id)
 
-        if record_date > get_today(timezone):
-        
-            raise ValueError(
-                "Record date cannot be in the future."
-            )
-
+        if record_date > get_today(timezone_name):
+            raise ValueError(FUTURE_DATE_MESSAGE)
 
     def _validate_count(
         self,
@@ -350,15 +365,13 @@ class TrackerLogic:
     ):
 
         if isinstance(count, bool) or not isinstance(count, int):
-            raise TypeError(
-                "count must be an integer."
-            )
+            raise TypeError(COUNT_TYPE_MESSAGE)
 
         if count < 0:
-            raise ValueError(
-                "count cannot be negative."
-            )
+            raise ValueError(COUNT_NEGATIVE_MESSAGE)
 
+        if count > 1000:
+            raise ValueError(COUNT_TOO_HIGH_MESSAGE)
 
     def _require_user(
         self,
