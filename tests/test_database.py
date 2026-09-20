@@ -1,13 +1,33 @@
 import pytest
+import shutil
 from datetime import date
 
 from database import TrackerDatabase
+from backup import backup_database
 
 
 @pytest.fixture
 def database(tmp_path):
     db_file = tmp_path / "test.db"
     return TrackerDatabase(str(db_file))
+
+
+def test_database_tracks_applied_migrations(database):
+    migrations = database.get_applied_migrations()
+
+    assert "001_init_schema" in migrations
+    assert "002_add_indexes" in migrations
+
+def test_backup_database_creates_backup(tmp_path):
+    source = tmp_path / "tracker.db"
+    backup_dir = tmp_path / "backups"
+    source.write_text("dummy database")
+
+    backup_path = backup_database(str(source), str(backup_dir))
+
+    assert backup_path.endswith(".db")
+    assert backup_dir.exists()
+    assert backup_dir.joinpath(source.name).exists()
 
 def test_add_or_update_record_creates_record(database):
 
