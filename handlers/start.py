@@ -3,6 +3,7 @@ from telegram.ext import ContextTypes
 
 from keyboards import MAIN_KEYBOARD
 from config import WELCOME_STICKER_ID
+from handlers.constants import WELCOME_MESSAGE
 
 from services.tracker_service import tracker
 from handlers.utils import (
@@ -30,13 +31,6 @@ async def start(
     )
 
     await update.message.reply_text(
-        "👋 Welcome to Daily Tracker!\n\n"
-        "Daily Tracker is a personal tracker for "
-        "recording and viewing the trend of masturbation "
-        "frequency over time.\n\n"
-        "You can record your daily count, review your "
-        "history and statistics, and visualize your "
-        "progress with a graph.\n\n"
-        "Choose an option below:",
+        WELCOME_MESSAGE,
         reply_markup=MAIN_KEYBOARD,
     )

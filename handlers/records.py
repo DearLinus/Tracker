@@ -8,6 +8,17 @@ import logging
 from keyboards import MAIN_KEYBOARD, BACK_KEYBOARD
 from config import SUCCESS_STICKER_ID, ERROR_STICKER_ID
 from services.tracker_service import tracker
+from handlers.constants import (
+    COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE,
+    GENERIC_RECORD_ERROR_MESSAGE,
+    INVALID_DATE_MESSAGE,
+    INVALID_FORMAT_MESSAGE,
+    INVALID_NUMBER_MESSAGE,
+    NEGATIVE_COUNT_MESSAGE,
+    RECORD_SAVED_TEMPLATE,
+    TODAY_RECORD_PROMPT,
+    TODAY_RECORD_UPDATE_PROMPT,
+)
 from handlers.utils import (
     get_user_id,
     reset_state,
@@ -39,21 +50,11 @@ async def start_today_record(
         today_date
     )
 
+    date_label = today_date.strftime("%B %d, %Y")
     if existing is None:
-        message = (
-            "📝 Today Record\n\n"
-            f"Today is {today_date.strftime('%B %d, %Y')}.\n\n"
-            "How many times did you do it today?\n\n"
-            "Send the number only.\n"
-            "Example: 8"
-        )
+        message = TODAY_RECORD_PROMPT.format(date_label=date_label)
     else:
-        message = (
-            "📝 Today Record\n\n"
-            f"Today's current record is {existing}.\n\n"
-            "Send the new count to update it.\n\n"
-            "Example: 8"
-        )
+        message = TODAY_RECORD_UPDATE_PROMPT.format(count=existing)
 
     await update.message.reply_text(
         message,
@@ -74,15 +75,14 @@ async def save_today_record(
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Please enter a whole number.\n\n"
-            "Example: 8",
+            INVALID_NUMBER_MESSAGE,
             reply_markup=BACK_KEYBOARD,
         )
         return
 
     if count < 0:
         await update.message.reply_text(
-            "⚠️ The count cannot be negative.",
+            NEGATIVE_COUNT_MESSAGE,
             reply_markup=BACK_KEYBOARD,
         )
         return
@@ -104,9 +104,10 @@ async def save_today_record(
         )
 
         await update.message.reply_text(
-            "✅ Record saved successfully.\n\n"
-            f"Date: {today_date.strftime('%B %d, %Y')}\n"
-            f"Count: {count}",
+            RECORD_SAVED_TEMPLATE.format(
+                date_label=today_date.strftime("%B %d, %Y"),
+                count=count,
+            ),
             reply_markup=MAIN_KEYBOARD,
         )
 
@@ -123,8 +124,7 @@ async def save_today_record(
         reset_state(context)
 
         await update.message.reply_text(
-            "⚠️ I couldn't save today's record.\n\n"
-            "Please try again later.",
+            GENERIC_RECORD_ERROR_MESSAGE,
             reply_markup=MAIN_KEYBOARD,
         )
 
@@ -160,11 +160,7 @@ async def save_new_record(
 
     if len(parts) != 2:
         await update.message.reply_text(
-            "⚠️ Invalid format.\n\n"
-            "Use:\n"
-            "YYYY-MM-DD count\n\n"
-            "Example:\n"
-            "2026-09-10 8",
+            INVALID_FORMAT_MESSAGE,
             reply_markup=BACK_KEYBOARD,
         )
         return
@@ -180,8 +176,7 @@ async def save_new_record(
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Invalid date.\n\n"
-            "Please use YYYY-MM-DD.",
+            INVALID_DATE_MESSAGE,
             reply_markup=BACK_KEYBOARD,
         )
         return
@@ -191,14 +186,14 @@ async def save_new_record(
 
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Count must be a whole number.",
+            COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE,
             reply_markup=BACK_KEYBOARD,
         )
         return
 
     if count < 0:
         await update.message.reply_text(
-            "⚠️ The count cannot be negative.",
+            NEGATIVE_COUNT_MESSAGE,
             reply_markup=BACK_KEYBOARD,
         )
         return

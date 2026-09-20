@@ -63,3 +63,65 @@ NEW_RECORD = "new_record"
 # Timezone
 # =========================================================
 DEFAULT_TIMEZONE = "Asia/Tehran"
+
+
+# =========================================================
+# Messages
+# =========================================================
+INVALID_NUMBER_MESSAGE = (
+    "⚠️ Please enter a whole number.\n\n"
+    "Example: 8"
+)
+
+NEGATIVE_COUNT_MESSAGE = "⚠️ The count cannot be negative."
+GENERIC_RECORD_ERROR_MESSAGE = (
+    "⚠️ I couldn't save today's record.\n\n"
+    "Please try again later."
+)
+
+WELCOME_MESSAGE = (
+    "👋 Welcome to Daily Tracker!\n\n"
+    "Daily Tracker is a personal tracker for "
+    "recording and viewing the trend of masturbation "
+    "frequency over time.\n\n"
+    "You can record your daily count, review your "
+    "history and statistics, and visualize your "
+    "progress with a graph.\n\n"
+    "Choose an option below:"
+)
+
+RECORD_SAVED_TEMPLATE = (
+    "✅ Record saved successfully.\n\n"
+    "Date: {date_label}\n"
+    "Count: {count}"
+)
+
+TODAY_RECORD_PROMPT = (
+    "📝 Today Record\n\n"
+    "Today is {date_label}.\n\n"
+    "How many times did you do it today?\n\n"
+    "Send the number only.\n"
+    "Example: 8"
+)
+
+TODAY_RECORD_UPDATE_PROMPT = (
+    "📝 Today Record\n\n"
+    "Today's current record is {count}.\n\n"
+    "Send the new count to update it.\n\n"
+    "Example: 8"
+)
+
+INVALID_DATE_MESSAGE = (
+    "⚠️ Invalid date.\n\n"
+    "Please use YYYY-MM-DD."
+)
+
+INVALID_FORMAT_MESSAGE = (
+    "⚠️ Invalid format.\n\n"
+    "Use:\n"
+    "YYYY-MM-DD count\n\n"
+    "Example:\n"
+    "2026-09-10 8"
+)
+
+COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE = "⚠️ Count must be a whole number."
