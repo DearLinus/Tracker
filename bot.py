@@ -10,10 +10,6 @@ from telegram.ext import (
     filters,
 )
 
-LOG_DIR = Path("logs")
-LOG_DIR.mkdir(exist_ok=True)
-
-
 class ColoredFormatter(logging.Formatter):
 
     COLORS = {
@@ -32,28 +28,38 @@ class ColoredFormatter(logging.Formatter):
         return f"{color}{message}{self.RESET}"
 
 
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(
-    ColoredFormatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+def configure_logging(log_dir: Path | str = "logs"):
+    """Configure logging. Call from main() to avoid import-side effects."""
+    log_path = Path(log_dir)
+    log_path.mkdir(exist_ok=True)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(
+        ColoredFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     )
-)
 
-file_handler = logging.FileHandler(LOG_DIR / "tracker.log", encoding="utf-8")
-file_handler.setFormatter(
-    logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    # Use RotatingFileHandler to avoid unbounded log file growth
+    from logging.handlers import RotatingFileHandler
+
+    file_handler = RotatingFileHandler(
+        log_path / "tracker.log",
+        encoding="utf-8",
+        maxBytes=10 * 1024 * 1024,  # 10 MB
+        backupCount=5,
     )
-)
+    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
 
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[stream_handler, file_handler],
-    force=True,
-)
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=[stream_handler, file_handler],
+        force=True,
+    )
 
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+    return logging.getLogger("tracker.bot")
+
 
 logger = logging.getLogger("tracker.bot")
 
@@ -93,6 +99,10 @@ async def error_handler(
 
 def main():
 
+    # configure logging now (no import-time side effects)
+    global logger
+    logger = configure_logging()
+
     token = TELEGRAM_BOT_TOKEN
 
     if not token:
@@ -120,7 +130,7 @@ def main():
         error_handler
     )
 
-    logging.info(
+    logger.info(
         "Daily Tracker bot is running..."
     )
 

@@ -10,6 +10,7 @@ from handlers.utils import (
     get_user_id,
     reset_state,
     get_user_today,
+    clear_user_state,
 )
 
 
@@ -18,6 +19,7 @@ async def show_history(
     context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
+    clear_user_state(update, context)
 
     user_id = get_user_id(update)
 

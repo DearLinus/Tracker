@@ -29,6 +29,9 @@ class TrackerLogic:
     def __init__(self, db_path=None):
         resolved_path = db_path or os.getenv("DATABASE_PATH", "tracker.db")
         self.database = TrackerDatabase(resolved_path)
+        # simple per-instance cache to avoid repeated DB hits for the same
+        # user existence checks during a request/handler lifecycle
+        self._user_exists_cache = {}
 
 
     # =========================================================
@@ -47,6 +50,9 @@ class TrackerLogic:
             user_id,
             username
         )
+
+        # created -> cache positive result to avoid immediate re-checks
+        self._user_exists_cache[user_id] = True
 
         timezone = self.database.get_setting(
             user_id,
@@ -69,9 +75,13 @@ class TrackerLogic:
 
         self._validate_user_id(user_id)
 
-        return self.database.user_exists(
-            user_id
-        )
+        # check local cache first
+        if user_id in self._user_exists_cache:
+            return self._user_exists_cache[user_id]
+
+        exists = self.database.user_exists(user_id)
+        self._user_exists_cache[user_id] = exists
+        return exists
 
 
     # =========================================================
@@ -286,7 +296,7 @@ class TrackerLogic:
 
         self._validate_user_id(user_id)
 
-        if not self.database.user_exists(user_id):
+        if not self.user_exists(user_id):
             return default
 
         value = self.database.get_setting(
@@ -364,6 +374,25 @@ class TrackerLogic:
         )
         return self._validate_timezone_name(timezone_name)
 
+    # =========================================================
+    # PERSISTED USER STATE
+    # =========================================================
+
+    def set_user_state(self, user_id, state_key, state_value):
+        self._validate_user_id(user_id)
+        self._require_user(user_id)
+        self.database.set_user_state(user_id, state_key, state_value)
+
+    def get_user_state(self, user_id, state_key):
+        self._validate_user_id(user_id)
+        # do not require user here; reading state for unknown user should
+        # simply return None
+        return self.database.get_user_state(user_id, state_key)
+
+    def delete_user_state(self, user_id, state_key):
+        self._validate_user_id(user_id)
+        self.database.delete_user_state(user_id, state_key)
+
     def _validate_record_date(
         self,
         user_id,
@@ -395,7 +424,7 @@ class TrackerLogic:
         user_id
     ):
 
-        if not self.database.user_exists(user_id):
+        if not self.user_exists(user_id):
             raise ValueError(
                 "User does not exist."
             )

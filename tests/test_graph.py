@@ -301,7 +301,8 @@ def test_returns_none_without_records(figures):
 def test_returns_none_when_nothing_in_range(figures):
     records = make_records({200: 5})
     image = create_graph(FakeLogic(records), 1, timeline="Weekly", today=TODAY)
-    assert image is None
+    # user has records, but none in the requested range -> sentinel
+    assert image == "empty_range"
 
 
 def test_today_is_required():

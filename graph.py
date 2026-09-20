@@ -25,8 +25,17 @@ def create_graph(
     theme="dark",
     today=None,
 ):
+    """
+    Returns:
+      - BytesIO image when the graph can be rendered
+      - None when the user has no records at all
+      - "empty_range" (str) when the user has records but none inside the
+        requested timeline range
+    """
+
     records = logic.get_records(user_id)
 
+    # No records for the user at all
     if not records:
         return None
 
@@ -42,8 +51,9 @@ def create_graph(
         if start_date <= d <= today
     }
 
+    # User has records, but none in the selected range
     if not filtered:
-        return None
+        return "empty_range"
 
     dates = [start_date + timedelta(days=i) for i in range(days)]
     counts = [filtered.get(d, float("nan")) for d in dates]

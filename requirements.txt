@@ -17,4 +17,5 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.3
 python-telegram-bot==22.8
 six==1.17.0
+tzdata==2026.4; sys_platform == "win32"
 typing_extensions==4.16.0

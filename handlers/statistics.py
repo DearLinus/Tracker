@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes
 
 from keyboards import MAIN_KEYBOARD
 from services.tracker_service import tracker
-from handlers.utils import get_user_id, reset_state
+from handlers.utils import get_user_id, reset_state, clear_user_state
 
 
 async def show_statistics(
@@ -12,6 +12,7 @@ async def show_statistics(
 ):
 
     reset_state(context)
+    clear_user_state(update, context)
 
     user_id = get_user_id(update)
 

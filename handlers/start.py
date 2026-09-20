@@ -9,6 +9,7 @@ from services.tracker_service import tracker
 from handlers.utils import (
     reset_state,
     send_sticker_if_available,
+    clear_user_state,
 )
 
 
@@ -17,6 +18,7 @@ async def start(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     reset_state(context)
+    clear_user_state(update, context)
 
     user = update.effective_user
 

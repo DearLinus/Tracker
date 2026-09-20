@@ -8,6 +8,8 @@ from handlers.utils import (
     get_user_id,
     reset_state,
     get_graph_theme,
+    set_user_state,
+    clear_user_state,
 )
 
 from handlers.constants import (
@@ -23,6 +25,7 @@ async def show_settings(
 ):
 
     reset_state(context)
+    clear_user_state(update, context)
 
     current_theme = get_graph_theme(update)
 
@@ -32,7 +35,7 @@ async def show_settings(
         else "☀️ Light"
     )
 
-    context.user_data["awaiting"] = SETTINGS
+    set_user_state(update, context, SETTINGS)
 
     await update.message.reply_text(
         "⚙️ Settings\n\n"
@@ -58,6 +61,7 @@ async def change_graph_theme(
     )
 
     reset_state(context)
+    clear_user_state(update, context)
 
     if theme == DARK_THEME:
         message = (

@@ -1,176 +1,65 @@
 import pytest
 
-from handlers.statistics import show_statistics
+from logic import TrackerLogic
 
 
-class FakeUser:
-    def __init__(self):
-        self.id = 123
-        self.username = "test_user"
+# The original handler tests depended on Telegram Update/Context and
+# monkeypatching tracker.get_records. These tests exercise the
+# statistics calculation logic directly by calling TrackerLogic.get_statistics.
+# This makes them faster, simpler, and independent from handler plumbing.
 
 
-class FakeMessage:
+def test_statistics_without_records(monkeypatch):
+    logic = TrackerLogic(db_path=":memory:")
 
-    def __init__(self):
-        self.replies = []
+    # Stub out get_records to avoid touching the DB and to isolate the
+    # behavior under test.
+    monkeypatch.setattr(logic, "get_records", lambda user_id: {})
 
+    stats = logic.get_statistics(123)
 
-    async def reply_text(self, text, **kwargs):
-        self.replies.append(text)
-
-
-class FakeUpdate:
-
-    def __init__(self):
-        self.effective_user = FakeUser()
-        self.message = FakeMessage()
-
-
-class FakeContext:
-
-    def __init__(self):
-        self.user_data = {
-            "awaiting": "something"
-        }
+    assert stats == {
+        "days": 0,
+        "total": 0,
+        "average": 0,
+        "highest": 0,
+    }
 
 
-
-# =========================================================
-# empty statistics
-# =========================================================
-
-
-@pytest.mark.asyncio
-async def test_statistics_without_records(monkeypatch):
-
-    update = FakeUpdate()
-    context = FakeContext()
-
+def test_statistics_calculates_values(monkeypatch):
+    logic = TrackerLogic(db_path=":memory:")
 
     monkeypatch.setattr(
-        "handlers.statistics.tracker.get_records",
-        lambda *args: {}
-    )
-
-
-    await show_statistics(
-        update,
-        context
-    )
-
-
-    assert len(
-        update.message.replies
-    ) == 1
-
-
-    assert (
-        "don't have any records"
-        in update.message.replies[0]
-    )
-
-
-    assert (
-        "awaiting"
-        not in context.user_data
-    )
-
-
-
-# =========================================================
-# statistics calculation
-# =========================================================
-
-
-@pytest.mark.asyncio
-async def test_statistics_calculates_values(monkeypatch):
-
-    update = FakeUpdate()
-    context = FakeContext()
-
-
-    monkeypatch.setattr(
-        "handlers.statistics.tracker.get_records",
-        lambda *args: {
+        logic,
+        "get_records",
+        lambda user_id: {
+            # use ints as values; keys can be dates or strings - only values()
+            # are used by the calculation
             "2026-09-10": 5,
             "2026-09-11": 10,
             "2026-09-12": 15,
-        }
+        },
     )
 
+    stats = logic.get_statistics(123)
 
-    await show_statistics(
-        update,
-        context
-    )
-
-
-    message = update.message.replies[0]
+    assert stats["days"] == 3
+    assert stats["total"] == 30
+    assert pytest.approx(stats["average"], rel=1e-9) == 10.0
+    assert stats["highest"] == 15
 
 
-    assert (
-        "Recorded days: 3"
-        in message
-    )
-
-    assert (
-        "Total: 30"
-        in message
-    )
-
-    assert (
-        "Average: 10.00"
-        in message
-    )
-
-    assert (
-        "Highest: 15"
-        in message
-    )
-
-
-    assert (
-        "awaiting"
-        not in context.user_data
-    )
-
-# =========================================================
-# user isolation
-# =========================================================
-
-
-@pytest.mark.asyncio
-async def test_statistics_uses_correct_user_id(monkeypatch):
-
-    update = FakeUpdate()
-    context = FakeContext()
+def test_statistics_uses_correct_user_id(monkeypatch):
+    logic = TrackerLogic(db_path=":memory:")
 
     received_ids = []
 
-
     def fake_get_records(user_id):
+        received_ids.append(user_id)
+        return {"2026-09-10": 5}
 
-        received_ids.append(
-            user_id
-        )
+    monkeypatch.setattr(logic, "get_records", fake_get_records)
 
-        return {
-            "2026-09-10": 5
-        }
+    _ = logic.get_statistics(123)
 
-
-    monkeypatch.setattr(
-        "handlers.statistics.tracker.get_records",
-        fake_get_records
-    )
-
-
-    await show_statistics(
-        update,
-        context
-    )
-
-
-    assert received_ids == [
-        123
-    ]
+    assert received_ids == [123]

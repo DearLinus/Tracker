@@ -18,12 +18,16 @@ from handlers.constants import (
     RECORD_SAVED_TEMPLATE,
     TODAY_RECORD_PROMPT,
     TODAY_RECORD_UPDATE_PROMPT,
+    TODAY_COUNT,
+    NEW_RECORD,
 )
 from handlers.utils import (
     get_user_id,
     reset_state,
     send_sticker_if_available,
     get_user_today,
+    set_user_state,
+    clear_user_state,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,8 +43,8 @@ async def start_today_record(
     context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
-
-    context.user_data["awaiting"] = "today_count"
+    # persist and mirror the new awaiting state
+    set_user_state(update, context, TODAY_COUNT)
 
     today_date = get_user_today(update)
     user_id = get_user_id(update)
@@ -112,9 +116,12 @@ async def save_today_record(
         )
 
         reset_state(context)
+        clear_user_state(update, context)
 
-    except Exception:
-        logger.exception("Failed to save today's record")
+    except ValueError as exc:
+        logger.warning("Rejected today's record: %s", exc)
+
+        clear_user_state(update, context)
 
         await send_sticker_if_available(
             update,
@@ -122,6 +129,25 @@ async def save_today_record(
         )
 
         reset_state(context)
+        clear_user_state(update, context)
+
+        await update.message.reply_text(
+            f"⚠️ {exc}",
+            reply_markup=MAIN_KEYBOARD,
+        )
+
+    except Exception:
+        logger.exception("Failed to save today's record")
+
+        clear_user_state(update, context)
+
+        await send_sticker_if_available(
+            update,
+            ERROR_STICKER_ID,
+        )
+
+        reset_state(context)
+        clear_user_state(update, context)
 
         await update.message.reply_text(
             GENERIC_RECORD_ERROR_MESSAGE,
@@ -139,7 +165,7 @@ async def start_new_record(
 ):
     reset_state(context)
 
-    context.user_data["awaiting"] = "new_record"
+    set_user_state(update, context, NEW_RECORD)
 
     await update.message.reply_text(
         "➕ New Record\n\n"

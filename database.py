@@ -41,6 +41,18 @@ MIGRATIONS = [
         ON settings(user_id, setting_key);
         """,
     ),
+    (
+        "003_user_states",
+        """
+        CREATE TABLE IF NOT EXISTS user_states (
+            user_id INTEGER NOT NULL,
+            state_key TEXT NOT NULL,
+            state_value TEXT,
+            PRIMARY KEY(user_id, state_key),
+            FOREIGN KEY(user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
+        );
+        """,
+    ),
 ]
 
 
@@ -105,6 +117,37 @@ class TrackerDatabase:
             ).fetchall()
             return [row["migration_name"] for row in rows]
 
+    # =========================================================
+    # USER STATE (persistence for conversation state)
+    # =========================================================
+
+    def set_user_state(self, user_id, state_key, state_value):
+        with self.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO user_states (user_id, state_key, state_value)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id, state_key) DO UPDATE SET
+                    state_value = excluded.state_value
+                """,
+                (user_id, state_key, state_value),
+            )
+
+    def get_user_state(self, user_id, state_key):
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT state_value FROM user_states WHERE user_id = ? AND state_key = ?",
+                (user_id, state_key),
+            ).fetchone()
+            return None if row is None else row["state_value"]
+
+    def delete_user_state(self, user_id, state_key):
+        with self.connection() as connection:
+            connection.execute(
+                "DELETE FROM user_states WHERE user_id = ? AND state_key = ?",
+                (user_id, state_key),
+            )
+
     def _apply_migrations(self, connection):
         for migration_name, migration_sql in MIGRATIONS:
             existing = connection.execute(
@@ -115,7 +158,13 @@ class TrackerDatabase:
             if existing is not None:
                 continue
 
-            connection.executescript(migration_sql)
+            # Execute statements one-by-one to avoid implicit executescript
+            # transactional quirks and to keep migrations atomic under the
+            # surrounding connection() transaction.
+            statements = [s.strip() for s in migration_sql.split(";") if s.strip()]
+            for stmt in statements:
+                connection.execute(stmt)
+
             connection.execute(
                 "INSERT INTO schema_migrations (migration_name) VALUES (?)",
                 (migration_name,),

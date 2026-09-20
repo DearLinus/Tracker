@@ -6,6 +6,8 @@ from handlers.utils import (
     reset_state,
     get_graph_theme,
     get_user_today,
+    set_user_state,
+    clear_user_state,
 )
 import logging
 
@@ -30,8 +32,7 @@ async def show_graph_menu(
 ):
 
     reset_state(context)
-
-    context.user_data["awaiting"] = GRAPH_TIMELINE
+    set_user_state(update, context, GRAPH_TIMELINE)
 
     await update.message.reply_text(
         "📈 Masturbation Trend\n\n"
@@ -73,9 +74,22 @@ async def send_graph(
         if graph_image is None:
 
             reset_state(context)
+            clear_user_state(update, context)
 
             await update.message.reply_text(
                 "📈 No records available yet.",
+                reply_markup=MAIN_KEYBOARD,
+            )
+
+            return
+
+        # Special sentinel: user has records, but none in the requested range
+        if graph_image == "empty_range":
+            reset_state(context)
+            clear_user_state(update, context)
+
+            await update.message.reply_text(
+                "📈 You have records, but none in the selected time range.",
                 reply_markup=MAIN_KEYBOARD,
             )
 
@@ -96,6 +110,7 @@ async def send_graph(
         )
 
         reset_state(context)
+        clear_user_state(update, context)
 
         await update.message.reply_text(
             "Choose another option:",
@@ -106,6 +121,7 @@ async def send_graph(
         logger.exception("Failed to generate graph")
 
         reset_state(context)
+        clear_user_state(update, context)
 
         await update.message.reply_text(
             "⚠️ I couldn't generate the graph.",

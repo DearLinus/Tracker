@@ -9,8 +9,9 @@ A Telegram bot for tracking daily records, viewing statistics, reviewing history
 - Add a record for any date.
 - Record today's value directly.
 - Update existing records.
-- Delete records from the logic layer when needed.
 - Input validation for dates and values.
+
+> **Note:** Delete functionality will be added in future updates.
 
 ### 📊 Statistics
 
@@ -92,6 +93,12 @@ The application provides structured logs with different levels:
 
 Log levels are displayed using different terminal colors for easier monitoring.
 
+Logs are automatically rotated to prevent unbounded log file growth (max 10MB per file, up to 5 backups).
+
+### 💾 Conversation State Persistence
+
+User's conversation state (awaiting input for specific flows) is persisted in the database, allowing the bot to recover conversational context even after restarts.
+
 ## Tech Stack
 
 * **Python 3.12+**
@@ -99,6 +106,22 @@ Log levels are displayed using different terminal colors for easier monitoring.
 * **SQLite**
 * **Matplotlib**
 * **python-dotenv**
+
+### Platform-Specific Requirements
+
+#### Linux/macOS
+No additional system packages required beyond Python 3.12+.
+
+#### Windows
+You may need to install additional dependencies for Matplotlib rendering:
+
+```powershell
+# If you encounter issues with Matplotlib graph generation:
+pip install pywin32
+python -m pip install --upgrade pillow
+```
+
+The `pywin32` package is typically needed if Matplotlib fails to initialize the display backend on Windows.
 
 ## Project Structure
 
@@ -206,7 +229,12 @@ It handles:
 
 Handles SQLite database operations.
 
-The database stores user-specific records and settings using a migration-aware schema, indexes, and transactional commits/rollbacks.
+The database stores user-specific records, settings, and conversation state using a migration-aware schema and transactional commits/rollbacks.
+
+Features:
+* Atomic migrations (executed statement-by-statement for safe rollback)
+* User state persistence (remembers conversation state across restarts)
+* Foreign key constraints and cascading deletes
 
 ### `backup.py`
 

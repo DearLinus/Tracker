@@ -35,9 +35,8 @@ def backup_database(db_path: str, backup_dir: str) -> str:
         source.close()
 
     legacy_backup_path = os.path.join(backup_dir, os.path.basename(db_path))
-    if not os.path.exists(legacy_backup_path):
-        with sqlite3.connect(db_path) as source, sqlite3.connect(legacy_backup_path) as legacy:
-            source.backup(legacy)
+    with sqlite3.connect(db_path) as source, sqlite3.connect(legacy_backup_path) as legacy:
+        source.backup(legacy)
 
     return backup_path
 
