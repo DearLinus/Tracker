@@ -4,13 +4,24 @@ __pycache__/
 *.pyo
 
 # Virtual environments
+.venv/
 venv/
+venvenus/
 venvunus/
 env/
+
+# Secrets and environment
 .env
-# Personal application data
+.env.*
+
+# SQLite/database artifacts
+*.db
+*.db-wal
+*.db-shm
 tracker.db
 tracker_settings.json
+backups/
+logs/
 
 # OS files
 .DS_Store
@@ -23,4 +34,3 @@ Thumbs.db
 # Release archives
 DailyTracker-*.zip
 update_backups/
-venvenus/

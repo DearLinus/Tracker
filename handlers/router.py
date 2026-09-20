@@ -73,131 +73,63 @@ async def handle_text(
 
 
     # =====================================================
-    # STATES
-    # =====================================================
-
-    if awaiting == GRAPH_TIMELINE:
-
-        if text in GRAPH_TIMELINES:
-            await send_graph(
-                update,
-                context,
-                text
-            )
-            return
-
-
-    elif awaiting == SETTINGS:
-
-        if text == DARK_THEME_BUTTON:
-            await change_graph_theme(
-                update,
-                context,
-                DARK_THEME
-            )
-            return
-
-
-        if text == LIGHT_THEME_BUTTON:
-            await change_graph_theme(
-                update,
-                context,
-                LIGHT_THEME
-            )
-            return
-
-
-    elif awaiting == TODAY_COUNT:
-
-        await save_today_record(
-            update,
-            context
-        )
-        return
-
-
-    elif awaiting == NEW_RECORD:
-
-        await save_new_record(
-            update,
-            context
-        )
-        return
-
-
-
-    # =====================================================
     # MAIN MENU
     # =====================================================
 
     if text == GRAPH_BUTTON:
-
-        await show_graph_menu(
-            update,
-            context
-        )
+        await show_graph_menu(update, context)
         return
-
-
 
     if text == TODAY_RECORD_BUTTON:
-
-        await start_today_record(
-            update,
-            context
-        )
+        await start_today_record(update, context)
         return
-
-
 
     if text == NEW_RECORD_BUTTON:
-
-        await start_new_record(
-            update,
-            context
-        )
+        await start_new_record(update, context)
         return
-
-
 
     if text == STATISTICS_BUTTON:
-
-        await show_statistics(
-            update,
-            context
-        )
+        await show_statistics(update, context)
         return
-
-
 
     if text == HISTORY_BUTTON:
-
-        await show_history(
-            update,
-            context
-        )
+        await show_history(update, context)
         return
-
-
 
     if text == SETTINGS_BUTTON:
-
-        await show_settings(
-            update,
-            context
-        )
+        await show_settings(update, context)
         return
-
-
 
     if text == EXPORT_BUTTON:
-
-        await export_records(
-            update,
-            context
-        )
+        await export_records(update, context)
         return
 
+
+    # =====================================================
+    # STATES
+    # =====================================================
+
+    if awaiting == GRAPH_TIMELINE:
+        if text in GRAPH_TIMELINES:
+            await send_graph(update, context, text)
+            return
+
+    elif awaiting == SETTINGS:
+        if text == DARK_THEME_BUTTON:
+            await change_graph_theme(update, context, DARK_THEME)
+            return
+
+        if text == LIGHT_THEME_BUTTON:
+            await change_graph_theme(update, context, LIGHT_THEME)
+            return
+
+    elif awaiting == TODAY_COUNT:
+        await save_today_record(update, context)
+        return
+
+    elif awaiting == NEW_RECORD:
+        await save_new_record(update, context)
+        return
 
 
     # =====================================================
