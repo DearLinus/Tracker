@@ -1,21 +1,21 @@
 # Daily Tracker
 
-A Telegram bot for tracking daily records, viewing statistics, reviewing history, and visualizing trends over time.
+A Telegram bot for tracking daily counts, viewing statistics, checking history, and generating trend graphs over time.
 
 ## Features
 
 ### 📝 Record Tracking
 
-- Add a record for any date.
-- Record today's value directly.
-- Update existing records.
-- Input validation for dates and values.
+- Add a record for today.
+- Add a record for any past date.
+- Update an existing record.
+- Validate user input for numeric values and date format.
 
-> **Note:** Delete functionality will be added in future updates.
+> Delete functionality is not implemented yet and will be added in a future update.
 
 ### 📊 Statistics
 
-View:
+The bot can show:
 
 - Number of recorded days
 - Total value
@@ -24,11 +24,11 @@ View:
 
 ### 📜 History
 
-Review recent activity for the last 7 days, including days with saved records. Empty days are displayed as `No record` instead of `0` to make missing data explicit.
+Review the last 7 days with explicit `No record` markers for missing dates instead of silently treating them as zero.
 
 ### 📈 Graphs
 
-Generate trend graphs for:
+Generate charts for:
 
 - Weekly
 - Monthly
@@ -36,98 +36,114 @@ Generate trend graphs for:
 - 6 Months
 - 1 Year
 
-The graph also includes a guide for today's recorded value when available.
+The graph also includes a visual guide for the current day's value when available.
 
-### 🎨 Graph Themes
+### 🎨 Theme Support
 
-Choose between:
+Each user can choose a graph theme:
 
-- 🌙 Dark
-- ☀️ Light
+- Dark
+- Light
 
-The selected theme is stored separately for each user.
+The selected theme is stored per Telegram user.
 
 ### 👤 Multi-user Support
 
-The bot supports multiple Telegram users.
+The bot keeps each user's:
 
-Each user's:
+- records
+- settings
+- statistics
+- conversation state
 
-- Records
-- Settings
-- Statistics
+separate using their Telegram user ID.
 
-are kept separate using their Telegram user ID.
+### 🌍 Timezone-aware Date Logic
 
-### 🌍 Timezone
-
-The bot currently defaults to:
+The app uses a default timezone of:
 
 ```text
 Asia/Tehran
 ```
 
-for the current-date calculation. Users can also keep their own timezone override in settings, and the project is structured so more timezone-aware behavior can be added without changing the whole app.
+Users can override it in settings. Date calculations are based on the user's local timezone so the "today" value is correct for each user.
 
-### ⚠️ Error Handling
+### ⚠️ Validation and Error Handling
 
 The bot includes:
 
-* Input validation
-* User-friendly error messages
-* Global Telegram error handling
-* Internal exception logging
-* Safe environment-based secret loading via `.env`
-
-Internal errors are logged instead of exposing raw exceptions to users.
+- input validation for numeric and date values
+- friendly user-facing error messages
+- Telegram global error handling
+- internal logging without exposing stack traces to users
+- fail-fast configuration for required secrets
 
 ### 📋 Logging
 
-The application provides structured logs with different levels:
+The application logs at multiple levels:
 
-* `DEBUG`
-* `INFO`
-* `WARNING`
-* `ERROR`
-* `CRITICAL`
+- DEBUG
+- INFO
+- WARNING
+- ERROR
+- CRITICAL
 
-Log levels are displayed using different terminal colors for easier monitoring.
-
-Logs are automatically rotated to prevent unbounded log file growth (max 10MB per file, up to 5 backups).
+Logs are rotated automatically to prevent the log file from growing without limit.
 
 ### 💾 Conversation State Persistence
 
-User's conversation state (awaiting input for specific flows) is persisted in the database, allowing the bot to recover conversational context even after restarts.
+User flow state is persisted in SQLite and restored after a restart, so a bot restart does not lose the user's current step in a conversation flow.
 
-## Tech Stack
+## Requirements
 
-* **Python 3.12+**
-* **python-telegram-bot**
-* **SQLite**
-* **Matplotlib**
-* **python-dotenv**
+- Python 3.12+
+- SQLite
+- python-telegram-bot
+- Matplotlib
+- python-dotenv
 
-### Platform-Specific Requirements
+## Setup
 
-#### Linux/macOS
-No additional system packages required beyond Python 3.12+.
+1. Clone the repository.
+2. Create a virtual environment and install dependencies:
 
-#### Windows
-You may need to install additional dependencies for Matplotlib rendering:
-
-```powershell
-# If you encounter issues with Matplotlib graph generation:
-pip install pywin32
-python -m pip install --upgrade pillow
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+pip install -r requirements.txt
 ```
 
-The `pywin32` package is typically needed if Matplotlib fails to initialize the display backend on Windows.
+3. Create a `.env` file in the project root with at least:
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+```
+
+Optional values:
+
+```env
+DATABASE_PATH=tracker.db
+WELCOME_STICKER_ID=your_welcome_sticker_id
+SUCCESS_STICKER_ID=your_success_sticker_id
+ERROR_STICKER_ID=your_error_sticker_id
+```
+
+If `TELEGRAM_BOT_TOKEN` is missing, the application exits immediately with a clear error instead of continuing with an invalid token.
+
+## Windows Notes
+
+On Windows, if Matplotlib has trouble initializing or rendering graphs, install the additional packages below:
+
+```powershell
+pip install pywin32 pillow
+```
+
+The project also includes `tzdata` in `requirements.txt` for Windows environments, which helps with timezone resolution.
 
 ## Project Structure
 
 ```text
 tracker/
-│
 ├── backup.py
 ├── bot.py
 ├── config.py
@@ -139,7 +155,6 @@ tracker/
 ├── requirements.txt
 ├── timezone.py
 ├── version.py
-│
 ├── handlers/
 │   ├── __init__.py
 │   ├── constants.py
@@ -153,110 +168,104 @@ tracker/
 │   ├── start.py
 │   ├── statistics.py
 │   └── utils.py
-│
 ├── services/
 │   ├── __init__.py
 │   └── tracker_service.py
-│
-└── tests/
-    ├── __init__.py
-    ├── conftest.py
-    ├── test_database.py
-    ├── test_export_handler.py
-    ├── test_graph.py
-    ├── test_graph_handler.py
-    ├── test_history_handler.py
-    ├── test_keyboards.py
-    ├── test_logic.py
-    ├── test_records_handler.py
-    ├── test_records_integration.py
-    ├── test_router.py
-    ├── test_settings_handler.py
-    ├── test_start_handler.py
-    ├── test_statistics_handler.py
-    └── test_utils.py
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py
+│   ├── test_database.py
+│   ├── test_export_handler.py
+│   ├── test_graph.py
+│   ├── test_graph_handler.py
+│   ├── test_history_handler.py
+│   ├── test_keyboards.py
+│   ├── test_logic.py
+│   ├── test_records_handler.py
+│   ├── test_records_integration.py
+│   ├── test_router.py
+│   ├── test_settings_handler.py
+│   ├── test_start_handler.py
+│   ├── test_statistics_handler.py
+│   └── test_utils.py
+└── .env
 ```
 
 ## Architecture
 
-The project is divided into several components.
+The project is split into layered components:
 
 ### `bot.py`
 
-Application entry point.
+Main entry point. Responsible for:
 
-Responsible for:
-
-* Creating the Telegram application
-* Registering handlers
-* Configuring logging
-* Handling global errors
-* Starting polling
+- creating the Telegram application
+- registering handlers
+- configuring logging
+- starting the polling loop
+- attaching the application-scoped tracker instance
 
 ### `handlers/`
 
-Contains Telegram-specific handlers.
+Telegram-specific logic for commands and menu flows:
 
-Each feature is separated into its own module:
-
-* `start.py` — `/start` command
-* `records.py` — creating and updating records
-* `graph.py` — graph menu and graph delivery
-* `settings.py` — user settings
-* `statistics.py` — statistics
-* `history.py` — history
-* `navigation.py` — navigation
-* `router.py` — text message routing
-* `utils.py` — shared handler utilities
-* `constants.py` — shared constants
+- `start.py` — `/start`
+- `records.py` — create/update daily records
+- `graph.py` — graph menu and graph creation
+- `settings.py` — user settings
+- `statistics.py` — statistics screen
+- `history.py` — recent activity
+- `navigation.py` — menu navigation
+- `router.py` — dispatching incoming text
+- `utils.py` — shared helper logic
+- `constants.py` — shared route and UI constants
 
 ### `logic.py`
 
-Contains the application's core tracking logic.
+Core business logic for:
 
-It handles:
-
-* User creation
-* Record creation
-* Record updates
-* Record deletion
-* Record retrieval
-* Statistics
-* User settings
-* Input validation
+- user creation
+- record saving and updates
+- record retrieval
+- statistics
+- settings
+- validation rules
 
 ### `database.py`
 
-Handles SQLite database operations.
+SQLite access layer with transactional migrations and schema management.
 
-The database stores user-specific records, settings, and conversation state using a migration-aware schema and transactional commits/rollbacks.
+Key points:
 
-Features:
-* Atomic migrations (executed statement-by-statement for safe rollback)
-* User state persistence (remembers conversation state across restarts)
-* Foreign key constraints and cascading deletes
+- migration support with transactional execution
+- foreign keys and integrity checks
+- per-user settings and persisted state
+- WAL mode and busy timeout configuration
 
 ### `backup.py`
 
-Provides backup and restore helpers built on SQLite's native `backup()` API so database copies remain consistent while the database is in use.
+SQLite backup utilities for safely copying DB state while the bot is running.
 
 ### `graph.py`
 
-Responsible for generating trend graphs using Matplotlib.
-
-It receives the user's records and graph settings and produces the requested graph.
+Generates chart images using Matplotlib, with sizing and rendering logic tuned for Telegram-friendly output.
 
 ### `services/tracker_service.py`
 
-Creates the application-scoped `TrackerLogic` instance and stores it on
-the Telegram `Application` as `bot_data["tracker"]`.
+Creates and stores the `TrackerLogic` instance on the Telegram `Application` object as `bot_data["tracker"]`.
 
-Handlers retrieve it with `get_tracker_from_context(context)`, so each
-bot instance owns its tracker instead of sharing a process-wide singleton.
+Handlers obtain the tracker with `get_tracker_from_context(context)` instead of relying on a process-wide singleton.
 
 ### `timezone.py`
 
-Provides the application's common timezone and current-date calculation.
+Contains common timezone helper logic and current-date calculations.
+
+## Notes
+
+- The project currently focuses on creating and updating records rather than deletion.
+- The bot reads and restores persisted user state after a restart.
+- The tracker is application-scoped, which makes tests and runtime state easier to reason about.
+- The Telegram token is required and validated early so misconfiguration fails fast.
 
 ## Configuration
 
