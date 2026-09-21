@@ -141,6 +141,29 @@ async def test_change_graph_theme_saves_setting(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_change_graph_theme_invalid_theme(monkeypatch):
+
+    update = FakeUpdate()
+    context = FakeContext()
+
+    class FakeTracker:
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    # Provide no-op persisted-state methods used by clear_user_state
+    FakeTracker.delete_user_state = staticmethod(lambda user_id, key: None)
+    FakeTracker.set_user_state = staticmethod(lambda user_id, key, value: None)
+    FakeTracker.get_user_state = staticmethod(lambda user_id, key: None)
+
+    await change_graph_theme(update, context, "not-a-theme")
+
+    assert "Invalid theme" in update.message.replies[0]
+
+
+@pytest.mark.asyncio
 async def test_delete_data_flow(monkeypatch):
 
     update = FakeUpdate()

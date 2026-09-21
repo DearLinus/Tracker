@@ -1,3 +1,56 @@
+import pytest
+
+from services.tracker_service import (
+    setup_application,
+    get_tracker_from_context,
+)
+
+
+class DummyApp:
+    pass
+
+
+def test_setup_application_attaches_tracker():
+    app = DummyApp()
+    tracker = setup_application(app, db_path=":memory:")
+
+    assert tracker is not None
+    assert getattr(app, "bot_data", None) is not None
+    assert app.bot_data["tracker"] is tracker
+
+
+def test_get_tracker_from_context_prefers_context_bot_data():
+    class Ctx:
+        def __init__(self):
+            self.bot_data = {"tracker": "A"}
+
+    ctx = Ctx()
+    assert get_tracker_from_context(ctx) == "A"
+
+
+def test_get_tracker_from_context_looks_in_application():
+    class Application:
+        def __init__(self):
+            self.bot_data = {"tracker": "B"}
+
+    class Ctx:
+        def __init__(self):
+            self.bot_data = None
+            self.application = Application()
+
+    ctx = Ctx()
+    assert get_tracker_from_context(ctx) == "B"
+
+
+def test_get_tracker_from_context_raises_on_missing():
+    class Ctx:
+        def __init__(self):
+            self.bot_data = None
+            self.application = None
+
+    ctx = Ctx()
+    with pytest.raises(RuntimeError):
+        get_tracker_from_context(ctx)
 from types import SimpleNamespace
 
 import pytest

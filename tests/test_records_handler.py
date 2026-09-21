@@ -6,6 +6,14 @@ from handlers.records import (
     start_new_record,
     save_new_record,
 )
+import sqlite3
+from zoneinfo import ZoneInfoNotFoundError
+from handlers.constants import (
+    NEGATIVE_COUNT_MESSAGE,
+    INVALID_DATE_MESSAGE,
+    COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE,
+    GENERIC_RECORD_ERROR_MESSAGE,
+)
 
 
 class FakeUser:
@@ -339,3 +347,185 @@ async def test_save_new_record_invalid_format():
         "Invalid format"
         in update.message.replies[0]
         )
+
+
+@pytest.mark.asyncio
+async def test_save_today_record_negative_count():
+
+    update = FakeUpdate(
+        "-3"
+    )
+
+    context = FakeContext()
+
+    # minimal tracker to satisfy handler lookup
+    class FakeTracker:
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    await save_today_record(
+        update,
+        context
+    )
+
+    assert NEGATIVE_COUNT_MESSAGE in update.message.replies[0]
+
+
+@pytest.mark.asyncio
+async def test_save_new_record_invalid_date_and_count_cases():
+
+    context = FakeContext()
+
+    class FakeTracker:
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    # invalid date
+    update1 = FakeUpdate("2026-13-01 5")
+    await save_new_record(update1, context)
+    assert INVALID_DATE_MESSAGE in update1.message.replies[0]
+
+    # non-integer count
+    update2 = FakeUpdate("2026-09-10 abc")
+    await save_new_record(update2, context)
+    assert COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE in update2.message.replies[0]
+
+    # negative count
+    update3 = FakeUpdate("2026-09-10 -5")
+    await save_new_record(update3, context)
+    assert NEGATIVE_COUNT_MESSAGE in update3.message.replies[0]
+
+
+@pytest.mark.asyncio
+async def test_save_today_record_handles_db_error(monkeypatch):
+
+    update = FakeUpdate("8")
+    context = FakeContext()
+
+    class BrokenTracker:
+        @staticmethod
+        def get_record(*args):
+            return None
+
+        @staticmethod
+        def save_record(*args, **kwargs):
+            raise sqlite3.Error("boom")
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": BrokenTracker()}
+
+    async def fake_send_sticker(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(
+        "handlers.records.send_sticker_if_available",
+        fake_send_sticker
+    )
+
+    await save_today_record(update, context)
+
+    assert GENERIC_RECORD_ERROR_MESSAGE in update.message.replies[-1]
+
+
+@pytest.mark.asyncio
+async def test_save_today_record_handles_tracker_value_error(monkeypatch):
+
+    update = FakeUpdate("8")
+    context = FakeContext()
+
+    class BadTracker:
+        @staticmethod
+        def get_record(*args):
+            return None
+
+        @staticmethod
+        def save_record(*args, **kwargs):
+            raise ValueError("validation failed")
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": BadTracker()}
+
+    async def fake_send_sticker(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(
+        "handlers.records.send_sticker_if_available",
+        fake_send_sticker,
+    )
+
+    await save_today_record(update, context)
+
+    assert "validation failed" in update.message.replies[-1]
+
+
+@pytest.mark.asyncio
+async def test_save_new_record_handles_zoneinfo_error(monkeypatch):
+
+    update = FakeUpdate("2026-09-10 5")
+    context = FakeContext()
+
+    class BadTracker2:
+        @staticmethod
+        def get_record(*args):
+            return None
+
+        @staticmethod
+        def save_record(*args, **kwargs):
+            raise ZoneInfoNotFoundError("tz")
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": BadTracker2()}
+
+    async def fake_send_sticker(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(
+        "handlers.records.send_sticker_if_available",
+        fake_send_sticker,
+    )
+
+    await save_new_record(update, context)
+
+    assert "I couldn't save the record" in update.message.replies[-1]

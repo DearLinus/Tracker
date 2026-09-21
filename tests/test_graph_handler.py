@@ -283,6 +283,20 @@ async def test_no_records_resets_state(update, context, deps):
     assert context.user_data == {}
 
 
+async def test_empty_range_shows_informative_message(update, context, deps):
+    """When the user has records but none fall into the requested range,
+    the handler should inform the user that the selected range is empty.
+    """
+    deps.create_graph.return_value = "empty_range"
+
+    await gh.send_graph(update, context, VALID_TIMELINE)
+
+    update.message.reply_text.assert_awaited_once()
+    args, kwargs = update.message.reply_text.call_args
+    assert "none in the selected time range" in args[0]
+    assert kwargs["reply_markup"] is MAIN_KEYBOARD
+
+
 # ------------------------------------------------------------------
 # send_graph: errors
 # ------------------------------------------------------------------
