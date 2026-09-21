@@ -77,8 +77,41 @@ class MinimalFakeTracker:
         return None
 
     @staticmethod
-    def save_setting(user_id, key, value):
+    def set_setting(user_id, key, value):
         return None
+
+    @staticmethod
+    def update_record(user_id, record_date, count):
+        return None
+
+    @staticmethod
+    def delete_record(user_id, record_date):
+        return None
+
+    @staticmethod
+    def delete_user(user_id):
+        return None
+
+    @staticmethod
+    def get_total(user_id):
+        return 0
+
+    @staticmethod
+    def get_average(user_id):
+        return 0
+
+    @staticmethod
+    def get_highest(user_id):
+        return 0
+
+    @staticmethod
+    def get_statistics(user_id):
+        return {
+            "days": 0,
+            "total": 0,
+            "average": 0,
+            "highest": 0,
+        }
 
     @staticmethod
     def user_exists(user_id):
@@ -104,9 +137,29 @@ def tracker_factory():
         class ConfiguredFakeTracker(MinimalFakeTracker):
             pass
         
+        autospec = overrides.pop("autospec", False)
+
         for method_name, method_impl in overrides.items():
             setattr(ConfiguredFakeTracker, method_name, staticmethod(method_impl))
-        
-        return ConfiguredFakeTracker()
+
+        instance = ConfiguredFakeTracker()
+
+        if autospec:
+            # Create an autospeced object matching TrackerLogic to catch API drift
+            from unittest.mock import create_autospec
+            from logic import TrackerLogic
+
+            spec = create_autospec(TrackerLogic, instance=True)
+            # copy over any overrides from the configured instance into the spec
+            for name in dir(instance):
+                if not name.startswith("_") and hasattr(spec, name):
+                    try:
+                        setattr(spec, name, getattr(instance, name))
+                    except Exception:
+                        pass
+
+            return spec
+
+        return instance
     
     return _create

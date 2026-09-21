@@ -19,7 +19,7 @@ from keyboards import MAIN_KEYBOARD
 
 from services.tracker_service import get_tracker_from_context as get_tracker
 
-from handlers.utils import get_user_id, get_user_state
+from handlers.utils import get_user_id, get_user_state, reset_state, clear_user_state
 
 from handlers.constants import (
     GRAPH_TIMELINE,
@@ -146,17 +146,37 @@ async def handle_text(
             return
 
     elif awaiting == TODAY_COUNT:
-        await save_today_record(update, context)
-        return
+        # Only forward to the handler if the message looks like a number.
+        # Otherwise treat as unknown input to avoid accidental execution
+        # when users send unrelated messages while a state is active.
+        if text.lstrip("-").isdigit():
+            await save_today_record(update, context)
+            return
+        # fall through to unknown handling below
 
     elif awaiting == NEW_RECORD:
-        await save_new_record(update, context)
-        return
+        # Expect format: YYYY-MM-DD count. If it doesn't match, treat as unknown
+        parts = text.split()
+        if len(parts) == 2:
+            date_part, count_part = parts
+            if date_part.count("-") == 2 and (count_part.lstrip("-").isdigit()):
+                await save_new_record(update, context)
+                return
+        # fall through to unknown handling below
 
 
     # =====================================================
     # UNKNOWN MESSAGE
     # =====================================================
+
+    # Clear any transient or persisted awaiting state to avoid accidental
+    # execution of previously-selected actions after an unrelated message.
+    reset_state(context)
+    try:
+        clear_user_state(update, context)
+    except Exception:
+        # Be conservative: do not fail on clear_user_state issues
+        pass
 
     await update.message.reply_text(
         "⚠️ I didn't understand that.\n\n"

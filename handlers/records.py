@@ -32,6 +32,7 @@ from handlers.utils import (
     set_user_state,
     clear_user_state,
 )
+from handlers.utils import parse_int
 
 logger = logging.getLogger(__name__)
 # =========================================================
@@ -78,7 +79,7 @@ async def save_today_record(
     user_id = get_user_id(update)
 
     try:
-        count = int(text)
+        count = parse_int(text)
 
     except ValueError:
         await update.message.reply_text(
@@ -224,7 +225,7 @@ async def save_new_record(
         return
 
     try:
-        count = int(count_text)
+        count = parse_int(count_text)
 
     except ValueError:
         await update.message.reply_text(

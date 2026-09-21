@@ -9,6 +9,8 @@ from handlers.utils import (
     set_user_state,
     clear_user_state,
 )
+import asyncio
+import functools
 from zoneinfo import ZoneInfoNotFoundError
 import sqlite3
 import logging
@@ -66,13 +68,17 @@ async def send_graph(
 
         theme = get_graph_theme(update, context)
 
-        graph_image = create_graph(
-        get_tracker(context),
-        user_id=get_user_id(update),
-        timeline=timeline_name,
-        theme=theme,
-        today=get_user_today(update, context),
-    )
+        # Offload graph generation to a thread to avoid blocking the event loop.
+        graph_image = await asyncio.to_thread(
+            functools.partial(
+                create_graph,
+                get_tracker(context),
+                user_id=get_user_id(update),
+                timeline=timeline_name,
+                theme=theme,
+                today=get_user_today(update, context),
+            )
+        )
 
         if graph_image is None:
 

@@ -72,6 +72,47 @@ MIGRATIONS = [
 ]
 
 
+def _remove_duplicate_indexes(connection):
+    """
+    Detect indexes that duplicate the canonical `idx_records_user_date`
+    and `idx_settings_user_key` semantics but have different names,
+    and drop them. This is implemented in Python because SQLite SQL
+    itself does not provide a simple way to iterate and DROP indexes
+    by their column list in a single static script.
+    """
+    canonical = {
+        "records": ("idx_records_user_date", ("user_id", "record_date")),
+        "settings": ("idx_settings_user_key", ("user_id", "setting_key")),
+    }
+
+    for tbl, (canonical_name, cols) in canonical.items():
+        cursor = connection.execute(
+            "SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name = ?",
+            (tbl,),
+        )
+
+        for row in cursor.fetchall():
+            name = row[0]
+            sql = row[1]
+            if sql is None:
+                # implicit indexes (e.g. for PKs) may have NULL sql; ignore
+                continue
+
+            low = sql.lower()
+            if all(c.lower() in low for c in cols) and name != canonical_name:
+                try:
+                    connection.execute(f'DROP INDEX IF EXISTS "{name}"')
+                except Exception:
+                    # best-effort: don't stop the whole migration on a single drop failure
+                    pass
+
+
+# Append a Python-backed migration that will run once and clean up any
+# duplicate indexes discovered at runtime. This keeps previous migrations
+# unchanged while providing an idempotent cleanup step.
+MIGRATIONS.append(("005_remove_duplicate_indexes", _remove_duplicate_indexes))
+
+
 class TrackerDatabase:
     """
     SQLite database layer for multi-user tracker.
@@ -180,10 +221,17 @@ class TrackerDatabase:
             connection.execute("BEGIN")
 
             try:
-                # Execute statements one-by-one to avoid implicit executescript
-                statements = [s.strip() for s in migration_sql.split(";") if s.strip()]
-                for stmt in statements:
-                    connection.execute(stmt)
+                # Support two migration types:
+                # - SQL text (string): split into statements and execute
+                # - Python callable: call it with the active connection
+                if callable(migration_sql):
+                    # Callable migrations receive the active connection
+                    migration_sql(connection)
+                else:
+                    # Execute statements one-by-one to avoid implicit executescript
+                    statements = [s.strip() for s in migration_sql.split(";") if s.strip()]
+                    for stmt in statements:
+                        connection.execute(stmt)
 
                 connection.execute(
                     "INSERT INTO schema_migrations (migration_name) VALUES (?)",
@@ -250,6 +298,51 @@ class TrackerDatabase:
 
     def add_or_update_record(self, user_id, record_date, count):
         with self.connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO records
+                (
+                    user_id,
+                    record_date,
+                    count
+                )
+
+                VALUES (?, ?, ?)
+
+
+                ON CONFLICT(
+                    user_id,
+                    record_date
+                )
+
+                DO UPDATE SET
+
+                    count = excluded.count
+
+                """,
+                (
+                    user_id,
+                    record_date.isoformat(),
+                    count,
+                ),
+            )
+
+    def add_or_update_record_require_user(self, user_id, record_date, count):
+        """
+        Atomically ensure the user exists and insert/update the record
+        using a single database connection. This reduces connection churn
+        when callers would otherwise check existence then write.
+        Raises ValueError if the user does not exist.
+        """
+        with self.connection() as connection:
+            cursor = connection.execute(
+                "SELECT 1 FROM users WHERE telegram_id = ? LIMIT 1",
+                (user_id,),
+            )
+
+            if cursor.fetchone() is None:
+                raise ValueError("User does not exist.")
+
             connection.execute(
                 """
                 INSERT INTO records

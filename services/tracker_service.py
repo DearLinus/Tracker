@@ -8,6 +8,12 @@ def setup_application(app, db_path=None):
     Application owns its own service instance instead of sharing a process-wide
     singleton.
     """
+    # During tests we prefer using an explicit in-memory DB. Tests can set
+    # the TESTING environment variable to indicate this preference.
+    import os
+    if db_path is None and os.getenv("TESTING"):
+        db_path = ":memory:"
+
     tracker_instance = TrackerLogic(db_path)
 
     if getattr(app, "bot_data", None) is None:

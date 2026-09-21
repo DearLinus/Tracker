@@ -88,3 +88,59 @@ def get_user_today(update, context: ContextTypes.DEFAULT_TYPE):
     return datetime.now(
         ZoneInfo(timezone)
     ).date()
+
+
+def parse_int(text: str) -> int:
+    """
+    Parse an integer from text accepting ASCII digits and Arabic-Indic / Eastern Arabic-Indic.
+    Preserves support for localized digits used by some users.
+
+    Rejects non-integer formats such as '1_0' or floats '3.5'. Allows leading '+' like '+5'.
+    """
+    if not isinstance(text, str):
+        raise ValueError("invalid literal for int()")
+
+    s = text.strip()
+
+    # allow leading plus or minus; caller can validate negativity
+    if s.startswith("+"):
+        s = s[1:]
+    elif s.startswith("-"):
+        # keep the leading '-' so int() can parse a negative number
+        pass
+
+    # Normalize Arabic-Indic digits to ASCII
+    arabic_map = {
+        ord("٠"): "0",
+        ord("١"): "1",
+        ord("٢"): "2",
+        ord("٣"): "3",
+        ord("٤"): "4",
+        ord("٥"): "5",
+        ord("٦"): "6",
+        ord("٧"): "7",
+        ord("٨"): "8",
+        ord("٩"): "9",
+        ord("۰"): "0",
+        ord("۱"): "1",
+        ord("۲"): "2",
+        ord("۳"): "3",
+        ord("۴"): "4",
+        ord("۵"): "5",
+        ord("۶"): "6",
+        ord("۷"): "7",
+        ord("۸"): "8",
+        ord("۹"): "9",
+    }
+
+    normalized = s.translate(arabic_map)
+
+    # reject underscores or decimal points
+    if "_" in normalized or "." in normalized or "," in normalized:
+        raise ValueError("invalid literal for int()")
+
+    # Now rely on int() which will raise ValueError for bad formats
+    try:
+        return int(normalized)
+    except ValueError:
+        raise

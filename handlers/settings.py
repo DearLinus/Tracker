@@ -131,7 +131,13 @@ async def confirm_delete_data(
 
     if confirm:
         # delete_user will cascade to records/settings/user_states via FK
-        deleted = tracker.delete_user(user_id)
+        # TrackerLogic.delete_user raises ValueError when the user does not
+        # exist; treat that as "no data found" so the handler presents a
+        # friendly message instead of bubbling an exception.
+        try:
+            deleted = tracker.delete_user(user_id)
+        except ValueError:
+            deleted = False
 
         if deleted:
             await update.message.reply_text(

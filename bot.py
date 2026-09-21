@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from handlers import register_handlers
@@ -31,6 +32,11 @@ class ColoredFormatter(logging.Formatter):
 def configure_logging(log_dir: Path | str = "logs"):
     """Configure logging. Call from main() to avoid import-side effects."""
     log_path = Path(log_dir)
+    # In tests we may want to avoid creating files or changing global
+    # logging state. Honor `NO_FILE_LOGS` environment variable to skip
+    # creating file handlers, and avoid forcing global handler replacement
+    # unless explicitly requested.
+    no_file = os.getenv("NO_FILE_LOGS") is not None
     log_path.mkdir(exist_ok=True)
 
     stream_handler = logging.StreamHandler()
@@ -38,21 +44,24 @@ def configure_logging(log_dir: Path | str = "logs"):
         ColoredFormatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     )
 
-    # Use RotatingFileHandler to avoid unbounded log file growth
-    from logging.handlers import RotatingFileHandler
+    handlers = [stream_handler]
 
-    file_handler = RotatingFileHandler(
-        log_path / "tracker.log",
-        encoding="utf-8",
-        maxBytes=10 * 1024 * 1024,  # 10 MB
-        backupCount=5,
-    )
-    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    if not no_file:
+        from logging.handlers import RotatingFileHandler
 
+        file_handler = RotatingFileHandler(
+            log_path / "tracker.log",
+            encoding="utf-8",
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+        )
+        file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        handlers.append(file_handler)
+
+    # Do not use force=True by default to avoid stomping on other tests' logging.
     logging.basicConfig(
         level=logging.INFO,
-        handlers=[stream_handler, file_handler],
-        force=True,
+        handlers=handlers,
     )
 
     logging.getLogger("httpx").setLevel(logging.WARNING)

@@ -1,6 +1,7 @@
 import os
 import sqlite3
-from backup import backup_database
+import pytest
+from backup import backup_database, restore_database
 
 
 def test_backup_success(tmp_path):
@@ -54,3 +55,86 @@ def test_backup_retention(tmp_path, monkeypatch):
     pattern = re.compile(rf"^{stem}_\d{{8}}_\d{{6}}.*\.db$")
     timestamped = [p for p in backup_dir.iterdir() if p.is_file() and pattern.match(p.name)]
     assert len(timestamped) <= 2
+
+
+def make_simple_db(path):
+    conn = sqlite3.connect(path)
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, x TEXT);")
+    cur.execute("INSERT INTO t (x) VALUES ('a')")
+    conn.commit()
+    conn.close()
+
+
+def test_backup_and_restore_roundtrip(tmp_path):
+    db = tmp_path / "test.db"
+    make_simple_db(db)
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+
+    backup_path = backup_database(str(db), str(backup_dir))
+    assert os.path.exists(backup_path)
+
+    # restore to a new path
+    restored = tmp_path / "restored.db"
+    restore_database(str(restored), backup_path)
+
+    # restored DB should contain the table
+    conn = sqlite3.connect(restored)
+    cur = conn.cursor()
+    cur.execute("SELECT x FROM t")
+    rows = cur.fetchall()
+    conn.close()
+    assert rows == [("a",)]
+
+
+def test_restore_fails_on_nonexistent_backup(tmp_path):
+    target = tmp_path / "target.db"
+    with pytest.raises(FileNotFoundError):
+        restore_database(str(target), str(tmp_path / "nope.db"))
+
+
+def test_restore_fails_on_corrupted_backup(tmp_path):
+    # create a non-sqlite file
+    bad = tmp_path / "bad.db"
+    bad.write_text("not a sqlite")
+
+    target = tmp_path / "target.db"
+
+    with pytest.raises(ValueError):
+        restore_database(str(target), str(bad))
+
+
+def test_restore_creates_safety_copy(tmp_path):
+    db = tmp_path / "test.db"
+    make_simple_db(db)
+
+    # create a second value so we can see difference post-restore
+    conn = sqlite3.connect(db)
+    conn.execute("INSERT INTO t (x) VALUES ('b')")
+    conn.commit()
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    backup_path = backup_database(str(db), str(backup_dir))
+
+    # mutate original to simulate mid-restore change
+    conn = sqlite3.connect(db)
+    conn.execute("DELETE FROM t WHERE x='b'")
+    conn.commit()
+    conn.close()
+
+    # restore should create a safety copy of current DB before overwrite
+    restore_database(str(db), backup_path)
+
+    # find pre_restore file
+    pre = list(tmp_path.glob("test.db.pre_restore_*.db"))
+    assert pre, "safety pre-restore file not created"
+
+    # safety copy should contain the truncated state (without 'b')
+    conn = sqlite3.connect(pre[0])
+    rows = conn.execute("SELECT x FROM t ORDER BY id").fetchall()
+    conn.close()
+    assert ("a",) in rows

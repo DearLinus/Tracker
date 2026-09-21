@@ -1,4 +1,14 @@
-# Python
+venvenus/
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+__pycache__/
+*.db
+test_tracker.db
+env/
+venv/
+/.venv# Python
 __pycache__/
 *.py[cod]
 *.pyo

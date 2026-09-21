@@ -56,9 +56,38 @@ def backup_database(db_path: str, backup_dir: str) -> str:
 
 
 def restore_database(db_path: str, backup_path: str) -> None:
+    # Ensure backup file exists before doing anything that could create DB file
+    if not os.path.exists(backup_path):
+        raise FileNotFoundError(f"Backup file not found: {backup_path}")
+
+    # Validate the backup by opening it read-only and running PRAGMA integrity_check
+    uri = f"file:{os.path.abspath(backup_path)}?mode=ro"
+    try:
+        with sqlite3.connect(uri, uri=True) as src_ro:
+            cur = src_ro.execute("PRAGMA integrity_check;")
+            row = cur.fetchone()
+            if row is None or row[0] != "ok":
+                raise ValueError("Backup integrity check failed")
+    except sqlite3.DatabaseError as exc:
+        # Not a valid SQLite database
+        raise ValueError("Backup file is not a valid SQLite database") from exc
+
+    # Ensure target directory exists but DO NOT open the target DB yet (to avoid
+    # creating an empty DB file in case of validation failures).
     os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
 
-    with sqlite3.connect(backup_path) as source, sqlite3.connect(db_path) as target:
+    # If the target DB exists, create a safety copy before overwriting it.
+    if os.path.exists(db_path):
+        from shutil import copy2
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safety_path = f"{db_path}.pre_restore_{timestamp}.db"
+        copy2(db_path, safety_path)
+
+    # Now perform the actual restore using SQLite's backup API. Open the
+    # source in read-only mode and the target normally (writable). Using the
+    # context managers ensures connections are closed properly.
+    src_uri = f"file:{os.path.abspath(backup_path)}?mode=ro"
+    with sqlite3.connect(src_uri, uri=True) as source, sqlite3.connect(db_path) as target:
         source.backup(target)
 
 

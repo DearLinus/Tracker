@@ -100,12 +100,12 @@ class TrackerLogic:
 
         self._validate_count(count)
 
-        self._require_user(user_id)
-
-        self.database.add_or_update_record(
+        # Use a single-connection DB operation to validate user and write
+        # the record atomically, reducing connection churn under load.
+        self.database.add_or_update_record_require_user(
             user_id,
             record_date,
-            count
+            count,
         )
 
 
