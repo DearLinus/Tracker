@@ -40,3 +40,73 @@ def use_temp_database(tmp_path, monkeypatch):
     # Override the env var for the duration of the test run
     monkeypatch.setenv("DATABASE_PATH", db_path)
     return db_path
+
+
+class MinimalFakeTracker:
+    """Minimal tracker that returns None/empty for all methods.
+    
+    Tests can subclass this and override only the methods they need.
+    This reduces boilerplate when creating test-specific FakeTrackers.
+    """
+    @staticmethod
+    def get_record(user_id, record_date):
+        return None
+
+    @staticmethod
+    def get_records(user_id):
+        return {}
+
+    @staticmethod
+    def get_setting(user_id, key, default=None):
+        return default
+
+    @staticmethod
+    def set_user_state(user_id, key, value):
+        return None
+
+    @staticmethod
+    def get_user_state(user_id, key):
+        return None
+
+    @staticmethod
+    def delete_user_state(user_id, key):
+        return None
+
+    @staticmethod
+    def save_record(user_id, record_date, count):
+        return None
+
+    @staticmethod
+    def save_setting(user_id, key, value):
+        return None
+
+    @staticmethod
+    def user_exists(user_id):
+        return True
+
+    @staticmethod
+    def create_user(user_id, username=None):
+        return None
+
+
+@pytest.fixture
+def tracker_factory():
+    """Factory to create configured FakeTracker instances for tests.
+    
+    Usage:
+        # Create minimal tracker
+        tracker = tracker_factory()
+        
+        # Or create with specific behavior
+        tracker = tracker_factory(get_record=lambda *a: 5)
+    """
+    def _create(**overrides):
+        class ConfiguredFakeTracker(MinimalFakeTracker):
+            pass
+        
+        for method_name, method_impl in overrides.items():
+            setattr(ConfiguredFakeTracker, method_name, staticmethod(method_impl))
+        
+        return ConfiguredFakeTracker()
+    
+    return _create

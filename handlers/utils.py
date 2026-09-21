@@ -1,12 +1,16 @@
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.error import TelegramError
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import logging
 
 from services.tracker_service import get_tracker_from_context as get_tracker
 
 
 from timezone import DEFAULT_TIMEZONE
+
+logger = logging.getLogger(__name__)
 
 def get_user_id(update: Update):
     return update.effective_user.id
@@ -44,9 +48,16 @@ def clear_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def send_sticker_if_available(update: Update, sticker_id: str | None):
+    """Send a sticker if available. Telegram errors are logged and not propagated.
+    
+    Sticker failures must never break the main handler flow (e.g., blocking a record save).
+    """
     if not sticker_id:
         return
-    await update.message.reply_sticker(sticker_id)
+    try:
+        await update.message.reply_sticker(sticker_id)
+    except TelegramError as exc:
+        logger.warning("Failed to send sticker: %s", exc)
 
 
 def get_graph_theme(update, context: ContextTypes.DEFAULT_TYPE):

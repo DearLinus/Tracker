@@ -130,11 +130,17 @@ async def test_sticker_not_sent_without_id(sticker_id):
 
 @pytest.mark.asyncio
 async def test_sticker_failure_is_swallowed():
-    """A broken sticker must never break the actual reply flow."""
+    """A broken sticker must never break the actual reply flow.
+    
+    TelegramError during sticker send should be logged but not propagated.
+    """
+    from telegram.error import TelegramError
+    
     update = MagicMock()
-    update.message.reply_sticker = AsyncMock(side_effect=RuntimeError("boom"))
-    with pytest.raises(RuntimeError):
-        await utils.send_sticker_if_available(update, "STICKER_ID")
+    update.message.reply_sticker = AsyncMock(side_effect=TelegramError("boom"))
+    
+    # Should not raise; sticker failure is swallowed
+    await utils.send_sticker_if_available(update, "STICKER_ID")
 
 
 # ------------------------------------------------------------------
