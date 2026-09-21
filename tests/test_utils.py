@@ -133,8 +133,8 @@ async def test_sticker_failure_is_swallowed():
     """A broken sticker must never break the actual reply flow."""
     update = MagicMock()
     update.message.reply_sticker = AsyncMock(side_effect=RuntimeError("boom"))
-
-    await utils.send_sticker_if_available(update, "STICKER_ID")  # no raise
+    with pytest.raises(RuntimeError):
+        await utils.send_sticker_if_available(update, "STICKER_ID")
 
 
 # ------------------------------------------------------------------
@@ -142,29 +142,29 @@ async def test_sticker_failure_is_swallowed():
 # ------------------------------------------------------------------
 
 def test_graph_theme_defaults_to_dark(tracker):
-    assert utils.get_graph_theme(make_update()) == "dark"
+    assert utils.get_graph_theme(make_update(), MagicMock()) == "dark"
 
 
 def test_default_theme_is_a_known_theme(tracker):
-    assert utils.get_graph_theme(make_update()) in constants.GRAPH_THEMES
+    assert utils.get_graph_theme(make_update(), MagicMock()) in constants.GRAPH_THEMES
 
 
 def test_graph_theme_returns_saved_value(tracker):
     tracker.settings[(1, "graph_theme")] = "light"
 
-    assert utils.get_graph_theme(make_update(user_id=1)) == "light"
+    assert utils.get_graph_theme(make_update(user_id=1), MagicMock()) == "light"
 
 
 def test_graph_theme_is_per_user(tracker):
     tracker.settings[(1, "graph_theme")] = "light"
     tracker.settings[(2, "graph_theme")] = "dark"
 
-    assert utils.get_graph_theme(make_update(user_id=1)) == "light"
-    assert utils.get_graph_theme(make_update(user_id=2)) == "dark"
+    assert utils.get_graph_theme(make_update(user_id=1), MagicMock()) == "light"
+    assert utils.get_graph_theme(make_update(user_id=2), MagicMock()) == "dark"
 
 
 def test_graph_theme_reads_the_right_setting_for_the_right_user(tracker):
-    utils.get_graph_theme(make_update(user_id=77))
+    utils.get_graph_theme(make_update(user_id=77), MagicMock())
 
     assert tracker.calls == [(77, "graph_theme")]
 
@@ -174,24 +174,24 @@ def test_graph_theme_reads_the_right_setting_for_the_right_user(tracker):
 # ------------------------------------------------------------------
 
 def test_timezone_defaults_to_default_timezone(tracker):
-    assert utils.get_user_timezone(make_update()) == utils.DEFAULT_TIMEZONE
+    assert utils.get_user_timezone(make_update(), MagicMock()) == utils.DEFAULT_TIMEZONE
 
 
 def test_timezone_returns_saved_value(tracker):
     tracker.settings[(1, "timezone")] = "Europe/Amsterdam"
 
-    assert utils.get_user_timezone(make_update(user_id=1)) == "Europe/Amsterdam"
+    assert utils.get_user_timezone(make_update(user_id=1), MagicMock()) == "Europe/Amsterdam"
 
 
 def test_timezone_is_per_user(tracker):
     tracker.settings[(1, "timezone")] = "Europe/Amsterdam"
 
-    assert utils.get_user_timezone(make_update(user_id=1)) == "Europe/Amsterdam"
-    assert utils.get_user_timezone(make_update(user_id=2)) == utils.DEFAULT_TIMEZONE
+    assert utils.get_user_timezone(make_update(user_id=1), MagicMock()) == "Europe/Amsterdam"
+    assert utils.get_user_timezone(make_update(user_id=2), MagicMock()) == utils.DEFAULT_TIMEZONE
 
 
 def test_timezone_reads_the_right_setting_for_the_right_user(tracker):
-    utils.get_user_timezone(make_update(user_id=77))
+    utils.get_user_timezone(make_update(user_id=77), MagicMock())
 
     assert tracker.calls == [(77, "timezone")]
 
@@ -214,7 +214,7 @@ def test_today_returns_a_plain_date(tracker):
     create_graph() compares record dates with `today`. A datetime instead
     of a date would raise TypeError there.
     """
-    result = utils.get_user_today(make_update())
+    result = utils.get_user_today(make_update(), MagicMock())
 
     assert isinstance(result, date)
     assert not isinstance(result, datetime)
@@ -239,7 +239,7 @@ def test_today_depends_on_user_timezone(tracker, freeze_time, tz_name, expected)
     freeze_time(LATE_EVENING_UTC)
     tracker.settings[(1, "timezone")] = tz_name
 
-    assert utils.get_user_today(make_update(user_id=1)) == expected
+    assert utils.get_user_today(make_update(user_id=1), MagicMock()) == expected
 
 
 def test_today_uses_default_timezone_when_none_saved(tracker, freeze_time):
@@ -249,7 +249,7 @@ def test_today_uses_default_timezone_when_none_saved(tracker, freeze_time):
         ZoneInfo(utils.DEFAULT_TIMEZONE)
     ).date()
 
-    assert utils.get_user_today(make_update()) == expected
+    assert utils.get_user_today(make_update(), MagicMock()) == expected
     assert expected == date(2026, 9, 20)  # Tehran is past midnight already
 
 
@@ -258,8 +258,8 @@ def test_two_users_can_have_different_today(tracker, freeze_time):
     tracker.settings[(1, "timezone")] = "Asia/Tehran"
     tracker.settings[(2, "timezone")] = "America/Los_Angeles"
 
-    assert utils.get_user_today(make_update(user_id=1)) == date(2026, 9, 20)
-    assert utils.get_user_today(make_update(user_id=2)) == date(2026, 9, 19)
+    assert utils.get_user_today(make_update(user_id=1), MagicMock()) == date(2026, 9, 20)
+    assert utils.get_user_today(make_update(user_id=2), MagicMock()) == date(2026, 9, 19)
 
 
 # Midnight boundary, using a zone without DST so the test is stable:
@@ -278,7 +278,7 @@ def test_today_changes_exactly_at_local_midnight(
     freeze_time(moment_utc)
     tracker.settings[(1, "timezone")] = "Asia/Kolkata"
 
-    assert utils.get_user_today(make_update(user_id=1)) == expected
+    assert utils.get_user_today(make_update(user_id=1), MagicMock()) == expected
 
 
 def test_invalid_saved_timezone_raises(tracker):
@@ -291,4 +291,4 @@ def test_invalid_saved_timezone_raises(tracker):
     tracker.settings[(1, "timezone")] = "Not/AZone"
 
     with pytest.raises(ZoneInfoNotFoundError):
-        utils.get_user_today(make_update(user_id=1))
+        utils.get_user_today(make_update(user_id=1), MagicMock())

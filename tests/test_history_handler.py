@@ -30,6 +30,7 @@ class FakeContext:
 
     def __init__(self):
         self.user_data = {}
+        self.bot_data = {}
 
 
 @pytest.mark.asyncio
@@ -43,9 +44,21 @@ async def test_history_without_records(monkeypatch):
         @staticmethod
         def get_records(user_id):
             return {}
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
     fake = FakeTracker()
-    monkeypatch.setattr("handlers.history.get_tracker", lambda ctx: fake, raising=True)
+    context.bot_data = {"tracker": fake}
 
 
     await show_history(
@@ -81,9 +94,21 @@ async def test_history_shows_records(monkeypatch):
         @staticmethod
         def get_records(user_id):
             return {today: 8}
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
     fake = FakeTracker()
-    monkeypatch.setattr("handlers.history.get_tracker", lambda ctx: fake, raising=True)
+    context.bot_data = {"tracker": fake}
 
 
     await show_history(
@@ -116,9 +141,21 @@ async def test_history_marks_missing_days_as_no_record(monkeypatch):
         @staticmethod
         def get_records(user_id):
             return {recent_day: 8}
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
     fake = FakeTracker()
-    monkeypatch.setattr("handlers.history.get_tracker", lambda ctx: fake, raising=True)
+    context.bot_data = {"tracker": fake}
 
     await show_history(update, context)
 
@@ -146,9 +183,21 @@ async def test_history_uses_correct_user_id(monkeypatch):
     class FakeTracker:
         def get_records(self, user_id):
             return fake_get_records(user_id)
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
     fake = FakeTracker()
-    monkeypatch.setattr("handlers.history.get_tracker", lambda ctx: fake, raising=True)
+    context.bot_data = {"tracker": fake}
 
 
     await show_history(

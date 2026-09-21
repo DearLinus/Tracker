@@ -35,6 +35,7 @@ class FakeContext:
 
     def __init__(self):
         self.user_data = {}
+        self.bot_data = {}
 
 
 
@@ -50,6 +51,16 @@ async def test_show_settings_sets_state(monkeypatch):
         lambda update, context: "dark"
     )
 
+    # provide a minimal tracker for user state operations
+    class _StateTracker:
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+    context.bot_data["tracker"] = _StateTracker()
 
     await show_settings(
         update,
@@ -84,8 +95,20 @@ async def test_change_graph_theme_saves_setting(monkeypatch):
     class FakeTracker:
         def set_setting(self, user_id, key, value):
             saved.append((user_id, key, value))
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
-    monkeypatch.setattr("handlers.settings.get_tracker", lambda ctx: FakeTracker(), raising=True)
+    context.bot_data = {"tracker": FakeTracker()}
 
 
     await change_graph_theme(

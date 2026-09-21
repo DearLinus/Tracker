@@ -9,6 +9,8 @@ from handlers.utils import (
     set_user_state,
     clear_user_state,
 )
+from zoneinfo import ZoneInfoNotFoundError
+import sqlite3
 import logging
 
 from keyboards import (
@@ -118,8 +120,10 @@ async def send_graph(
             reply_markup=MAIN_KEYBOARD,
         )
 
-    except Exception:
-        logger.exception("Failed to generate graph")
+    # Expected exceptions: timezone resolution, DB access, graph generation, or missing tracker.
+    # Handle these to provide a friendly reply; unexpected exceptions should propagate for debugging.
+    except (ZoneInfoNotFoundError, sqlite3.Error, ValueError, OSError, RuntimeError) as exc:
+        logger.exception("Failed to generate graph: %s", exc)
 
         reset_state(context)
         clear_user_state(update, context)

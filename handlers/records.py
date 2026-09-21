@@ -1,4 +1,6 @@
 from datetime import datetime
+import sqlite3
+from zoneinfo import ZoneInfoNotFoundError
 
 
 from telegram import Update
@@ -120,6 +122,7 @@ async def save_today_record(
         clear_user_state(update, context)
 
     except ValueError as exc:
+        # Expected validation errors raised by TrackerLogic
         logger.warning("Rejected today's record: %s", exc)
 
         clear_user_state(update, context)
@@ -137,8 +140,13 @@ async def save_today_record(
             reply_markup=MAIN_KEYBOARD,
         )
 
-    except Exception:
-        logger.exception("Failed to save today's record")
+    # Expected exceptions: validation/type errors from TrackerLogic, DB errors, or missing tracker.
+    # We handle these to give a user-facing message; unexpected exceptions should bubble up.
+    except (TypeError, sqlite3.Error, RuntimeError) as exc:
+        # TypeError: validation type issues from TrackerLogic
+        # sqlite3.Error: DB errors bubbled from TrackerDatabase
+        # RuntimeError: missing tracker or app initialization
+        logger.exception("Failed to save today's record: %s", exc)
 
         clear_user_state(update, context)
 
@@ -228,14 +236,17 @@ async def save_new_record(
     try:
         user_id = get_user_id(update)
 
-        existing = get_tracker(context).get_record(
+        # Cache tracker to avoid repeated lookups in this scope
+        tracker = get_tracker(context)
+
+        existing = tracker.get_record(
             user_id,
             record_date
         )
 
         # save_record is an upsert, so one call covers both cases.
         # `existing` is only used to pick the wording of the reply.
-        get_tracker(context).save_record(
+        tracker.save_record(
             user_id,
             record_date,
             count
@@ -266,8 +277,14 @@ async def save_new_record(
         )
         return
 
-    except Exception:
-        logger.exception("Failed to save new record")
+    # Expected exceptions: validation/type errors, DB errors, missing tracker, or timezone resolution failures.
+    # These are handled to present a friendly error to users; programmer errors should not be swallowed.
+    except (TypeError, sqlite3.Error, RuntimeError, ZoneInfoNotFoundError) as exc:
+        # TypeError: validation type issues from TrackerLogic
+        # sqlite3.Error: DB errors bubbled from TrackerDatabase
+        # RuntimeError: missing tracker or app initialization
+        # ZoneInfoNotFoundError: invalid timezone names during date validation
+        logger.exception("Failed to save new record: %s", exc)
 
         await send_sticker_if_available(
             update,

@@ -20,81 +20,58 @@ def reset_state(context: ContextTypes.DEFAULT_TYPE):
 def set_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE, state: str):
     """Set both in-memory and persistent state for the user."""
     context.user_data["awaiting"] = state
-    try:
-        user_id = get_user_id(update)
-        get_tracker(context).set_user_state(user_id, "awaiting", state)
-    except Exception:
-        # persistence is best-effort; do not fail the handler flow
-        pass
+    user_id = get_user_id(update)
+    get_tracker(context).set_user_state(user_id, "awaiting", state)
 
 
 def get_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Read state: prefer in-memory (current request), fall back to persisted."""
     if "awaiting" in context.user_data:
         return context.user_data["awaiting"]
-
-    try:
-        user_id = get_user_id(update)
-        state = get_tracker(context).get_user_state(user_id, "awaiting")
-        if state is not None:
-            # mirror into context for faster subsequent access
-            context.user_data["awaiting"] = state
-        return state
-    except Exception:
-        return None
+    user_id = get_user_id(update)
+    state = get_tracker(context).get_user_state(user_id, "awaiting")
+    if state is not None:
+        # mirror into context for faster subsequent access
+        context.user_data["awaiting"] = state
+    return state
 
 
 def clear_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Clear both in-memory and persisted state when update is available."""
     context.user_data.pop("awaiting", None)
-    try:
-        user_id = get_user_id(update)
-        get_tracker(context).delete_user_state(user_id, "awaiting")
-    except Exception:
-        pass
+    user_id = get_user_id(update)
+    get_tracker(context).delete_user_state(user_id, "awaiting")
 
 
 async def send_sticker_if_available(update: Update, sticker_id: str | None):
     if not sticker_id:
         return
-
-    try:
-        await update.message.reply_sticker(sticker_id)
-    except Exception:
-        pass
+    await update.message.reply_sticker(sticker_id)
 
 
-def get_graph_theme(update, context=None):
+def get_graph_theme(update, context: ContextTypes.DEFAULT_TYPE):
     user_id = get_user_id(update)
 
-    try:
-        return get_tracker(context).get_setting(
-            user_id,
-            "graph_theme",
-            default="dark",
-        )
-    except (AttributeError, TypeError, RuntimeError):
-        return "dark"
+    return get_tracker(context).get_setting(
+        user_id,
+        "graph_theme",
+        default="dark",
+    )
 
 
 
-def get_user_timezone(update, context=None):
+def get_user_timezone(update, context: ContextTypes.DEFAULT_TYPE):
     user_id = get_user_id(update)
 
-    try:
-        timezone = get_tracker(context).get_setting(
-            user_id,
-            "timezone",
-            DEFAULT_TIMEZONE
-        )
-    except (AttributeError, TypeError, RuntimeError):
-        return DEFAULT_TIMEZONE
-
-    return timezone
+    return get_tracker(context).get_setting(
+        user_id,
+        "timezone",
+        DEFAULT_TIMEZONE,
+    )
 
 
 
-def get_user_today(update, context=None):
+def get_user_today(update, context: ContextTypes.DEFAULT_TYPE):
     timezone = get_user_timezone(update, context)
 
     return datetime.now(

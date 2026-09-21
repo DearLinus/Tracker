@@ -54,13 +54,6 @@ async def change_graph_theme(
 ):
 
     user_id = get_user_id(update)
-
-    get_tracker(context).set_setting(
-        user_id,
-        "graph_theme",
-        theme,
-    )
-
     reset_state(context)
     clear_user_state(update, context)
 
@@ -77,7 +70,20 @@ async def change_graph_theme(
         )
 
     else:
-        message = "⚠️ Invalid theme."
+        await update.message.reply_text(
+            "⚠️ Invalid theme.",
+            reply_markup=MAIN_KEYBOARD,
+        )
+
+        # Do not persist invalid theme
+        return
+
+    # Persist only after validation
+    get_tracker(context).set_setting(
+        user_id,
+        "graph_theme",
+        theme,
+    )
 
     await update.message.reply_text(
         message,

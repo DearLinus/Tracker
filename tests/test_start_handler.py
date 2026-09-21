@@ -46,6 +46,9 @@ async def test_start_creates_user(mock_sticker):
     class FakeTracker1:
         def create_user(self, user_id, username):
             return fake_create_user(user_id, username)
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
     update = FakeUpdate()
     context = FakeContext(tracker=FakeTracker1())
@@ -67,6 +70,9 @@ async def test_start_sends_welcome_message(mock_sticker):
 
     class FakeTracker2:
         def create_user(self, *args):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
             return None
 
     update = FakeUpdate()
@@ -94,6 +100,9 @@ async def test_start_resets_state(mock_sticker):
 
     class FakeTracker3:
         def create_user(self, *args):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
             return None
 
     update = FakeUpdate()

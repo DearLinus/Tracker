@@ -32,6 +32,7 @@ class FakeContext:
 
     def __init__(self):
         self.user_data = {}
+        self.bot_data = {}
 
 
 
@@ -51,8 +52,20 @@ async def test_router_rejects_unknown_user(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return False
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
-    monkeypatch.setattr("handlers.router.get_tracker", lambda ctx: FakeTrackerA(), raising=True)
+    context.bot_data = {"tracker": FakeTrackerA()}
 
 
     await handle_text(
@@ -86,8 +99,20 @@ async def test_router_calls_today_record(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return True
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
-    monkeypatch.setattr("handlers.router.get_tracker", lambda ctx: FakeTrackerB(), raising=True)
+    context.bot_data = {"tracker": FakeTrackerB()}
 
 
     called = []
@@ -134,8 +159,20 @@ async def test_router_saves_today_record_when_waiting(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return True
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
-    monkeypatch.setattr("handlers.router.get_tracker", lambda ctx: FakeTrackerC(), raising=True)
+    context.bot_data = {"tracker": FakeTrackerC()}
 
 
     called = []
@@ -171,8 +208,20 @@ async def test_router_allows_menu_action_while_waiting(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return True
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
-    monkeypatch.setattr("handlers.router.get_tracker", lambda ctx: FakeTrackerD(), raising=True)
+    context.bot_data = {"tracker": FakeTrackerD()}
 
     called = []
 

@@ -35,16 +35,18 @@ class FakeUpdate:
 
 
 class FakeContext:
-    def __init__(self):
+    def __init__(self, tracker=None):
         self.user_data = {}
+        self.bot_data = {}
+        if tracker is not None:
+            self.bot_data["tracker"] = tracker
 
 
 @pytest.fixture
 def real_tracker(tmp_path, monkeypatch, mock_sticker):
     logic = TrackerLogic(str(tmp_path / "test.db"))
     logic.create_user(FakeUser.id, FakeUser.username)
-
-    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: logic, raising=True)
+    monkeypatch.setattr("services.tracker_service.get_tracker_from_context", lambda ctx: logic, raising=True)
     return logic
 
 
@@ -52,11 +54,11 @@ def real_tracker(tmp_path, monkeypatch, mock_sticker):
 async def test_today_record_can_be_overwritten(real_tracker):
     day = get_today()
 
-    await save_today_record(FakeUpdate("3"), FakeContext())
+    await save_today_record(FakeUpdate("3"), FakeContext(real_tracker))
     assert real_tracker.get_record(FakeUser.id, day) == 3
 
     update = FakeUpdate("5")
-    await save_today_record(update, FakeContext())
+    await save_today_record(update, FakeContext(real_tracker))
 
     assert real_tracker.get_record(FakeUser.id, day) == 5
     assert "saved successfully" in update.message.replies[-1]
@@ -65,11 +67,11 @@ async def test_today_record_can_be_overwritten(real_tracker):
 @pytest.mark.asyncio
 async def test_new_record_reports_added_then_updated(real_tracker):
     first = FakeUpdate("2026-01-10 4")
-    await save_new_record(first, FakeContext())
+    await save_new_record(first, FakeContext(real_tracker))
     assert "Action: Added" in first.message.replies[-1]
 
     second = FakeUpdate("2026-01-10 9")
-    await save_new_record(second, FakeContext())
+    await save_new_record(second, FakeContext(real_tracker))
     assert "Action: Updated" in second.message.replies[-1]
 
     from datetime import date

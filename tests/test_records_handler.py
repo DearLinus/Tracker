@@ -36,6 +36,7 @@ class FakeContext:
 
     def __init__(self):
         self.user_data = {}
+        self.bot_data = {}
 
 
 
@@ -54,8 +55,20 @@ async def test_start_today_record_sets_state(monkeypatch):
         @staticmethod
         def get_record(*args):
             return None
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
-    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: FakeTracker1(), raising=True)
+    context.bot_data = {"tracker": FakeTracker1()}
 
     await start_today_record(
         update,
@@ -84,8 +97,20 @@ async def test_start_today_record_existing_record(monkeypatch):
         @staticmethod
         def get_record(*args):
             return 5
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
-    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: FakeTracker2(), raising=True)
+    context.bot_data = {"tracker": FakeTracker2()}
 
     await start_today_record(
         update,
@@ -124,9 +149,21 @@ async def test_save_today_record_creates_record(monkeypatch):
         @staticmethod
         def save_record(user_id, record_date, count):
             saved.append((user_id, count))
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
     fake = FakeTracker3()
-    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: fake, raising=True)
+    context.bot_data = {"tracker": fake}
 
 
     async def fake_send_sticker(*args, **kwargs):
@@ -200,6 +237,13 @@ async def test_start_new_record_sets_state():
     update = FakeUpdate()
     context = FakeContext()
 
+    # provide a minimal tracker that implements state persistence used by the handler
+    class _StateTracker:
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+    context.bot_data["tracker"] = _StateTracker()
 
     await start_new_record(
         update,
@@ -240,9 +284,21 @@ async def test_save_new_record_creates_record(monkeypatch):
         @staticmethod
         def save_record(user_id, date, count):
             saved.append(count)
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
 
     fake = FakeTracker4()
-    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: fake, raising=True)
+    context.bot_data = {"tracker": fake}
 
 
     async def fake_send_sticker(*args, **kwargs):
