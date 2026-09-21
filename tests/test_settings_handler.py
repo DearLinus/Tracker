@@ -4,6 +4,7 @@ from handlers.settings import (
     show_settings,
     change_graph_theme,
 )
+from handlers.settings import request_delete_data, confirm_delete_data
 
 
 class FakeUser:
@@ -137,3 +138,75 @@ async def test_change_graph_theme_saves_setting(monkeypatch):
         "Dark graph enabled"
         in update.message.replies[0]
     )
+
+
+@pytest.mark.asyncio
+async def test_delete_data_flow(monkeypatch):
+
+    update = FakeUpdate()
+    context = FakeContext()
+
+    # Minimal tracker that reports deletion
+    class FakeTracker:
+        def __init__(self):
+            self.deleted = False
+
+        def delete_user(self, user_id):
+            self.deleted = True
+            return True
+
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    # Request delete sets confirmation state and sends confirmation message
+    await request_delete_data(update, context)
+    assert context.user_data.get("awaiting") == "confirm_delete"
+    assert "This will permanently delete" in update.message.replies[0]
+
+    # Confirm deletion
+    update2 = FakeUpdate()
+    context2 = FakeContext()
+    context2.bot_data = {"tracker": FakeTracker()}
+
+    await confirm_delete_data(update2, context2, True)
+    assert "Your data has been deleted" in update2.message.replies[0]
+
+
+@pytest.mark.asyncio
+async def test_delete_data_cancel(monkeypatch):
+
+    update = FakeUpdate()
+    context = FakeContext()
+
+    class FakeTracker:
+        @staticmethod
+        def delete_user(user_id):
+            return False
+
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    await confirm_delete_data(update, context, False)
+    assert "Deletion cancelled" in update.message.replies[0]

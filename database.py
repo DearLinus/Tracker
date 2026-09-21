@@ -53,6 +53,22 @@ MIGRATIONS = [
         );
         """,
     ),
+    (
+        "004_clean_indexes",
+        """
+        -- Ensure expected indexes exist and remove duplicates if present.
+        -- This uses DROP INDEX IF EXISTS which is safe on SQLite and
+        -- is idempotent for already-clean databases.
+        DROP INDEX IF EXISTS idx_records_user_date;
+        DROP INDEX IF EXISTS idx_settings_user_key;
+
+        CREATE INDEX IF NOT EXISTS idx_records_user_date
+        ON records(user_id, record_date);
+
+        CREATE INDEX IF NOT EXISTS idx_settings_user_key
+        ON settings(user_id, setting_key);
+        """,
+    ),
 ]
 
 

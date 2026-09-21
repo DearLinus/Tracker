@@ -15,7 +15,7 @@ def backup_database(db_path: str, backup_dir: str) -> str:
     os.makedirs(backup_dir, exist_ok=True)
 
     if not os.path.exists(db_path):
-        sqlite3.connect(db_path).close()
+        raise FileNotFoundError(f"Source database not found: {db_path}")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_name = f"{Path(db_path).stem}_{timestamp}.db"
@@ -24,19 +24,33 @@ def backup_database(db_path: str, backup_dir: str) -> str:
     if os.path.abspath(backup_path) == os.path.abspath(db_path):
         raise ValueError("Backup path cannot be the same as the database path.")
 
-    source = sqlite3.connect(db_path)
-    try:
-        backup = sqlite3.connect(backup_path)
-        try:
-            source.backup(backup)
-        finally:
-            backup.close()
-    finally:
-        source.close()
+    # Use context managers to ensure connections are closed promptly.
+    with sqlite3.connect(db_path) as source, sqlite3.connect(backup_path) as backup:
+        source.backup(backup)
 
-    legacy_backup_path = os.path.join(backup_dir, os.path.basename(db_path))
-    with sqlite3.connect(db_path) as source, sqlite3.connect(legacy_backup_path) as legacy:
-        source.backup(legacy)
+    # Rotation / retention: remove older timestamped backups beyond retention count
+    retention = int(os.getenv("BACKUP_RETENTION", "7"))
+
+    # Use a strict naming convention to identify timestamped backups created
+    # by this tool: <stem>_YYYYMMDD_HHMMSS*.db. This avoids accidentally
+    # matching unrelated files that merely share a prefix.
+    import re
+
+    stem = Path(db_path).stem
+    pattern = re.compile(rf"^{re.escape(stem)}_\d{{8}}_\d{{6}}.*\.db$")
+
+    timestamped_backups = sorted(
+        [p for p in Path(backup_dir).iterdir() if p.is_file() and pattern.match(p.name)],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+
+    for old in timestamped_backups[retention:]:
+        try:
+            old.unlink()
+        except Exception:
+            # Do not fail the backup if cleanup cannot remove an old file
+            pass
 
     return backup_path
 

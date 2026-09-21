@@ -70,6 +70,7 @@ ALL_BUTTONS = {
     "ONE_YEAR_BUTTON": c.ONE_YEAR_BUTTON,
     "DARK_THEME_BUTTON": c.DARK_THEME_BUTTON,
     "LIGHT_THEME_BUTTON": c.LIGHT_THEME_BUTTON,
+    "DELETE_DATA_BUTTON": c.DELETE_DATA_BUTTON,
 }
 
 TIMELINE_BUTTONS = [
@@ -163,6 +164,7 @@ def test_graph_keyboard_layout():
 def test_settings_keyboard_layout():
     assert layout(SETTINGS_KEYBOARD) == [
         [c.DARK_THEME_BUTTON, c.LIGHT_THEME_BUTTON],
+        [c.DELETE_DATA_BUTTON],
         [c.BACK_BUTTON],
     ]
 

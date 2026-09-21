@@ -10,6 +10,9 @@ HISTORY_BUTTON = "📜 History"
 SETTINGS_BUTTON = "⚙ Settings"
 BACK_BUTTON = "⬅️ Back"
 EXPORT_BUTTON = "📤 Export All History"
+DELETE_DATA_BUTTON = "🗑️ Delete My Data"
+CONFIRM_YES_BUTTON = "✅ Yes"
+CONFIRM_NO_BUTTON = "❌ No"
 
 # =========================================================
 # Graph timeline buttons
@@ -57,6 +60,7 @@ GRAPH_TIMELINE = "graph_timeline"
 SETTINGS = "settings"
 TODAY_COUNT = "today_count"
 NEW_RECORD = "new_record"
+CONFIRM_DELETE = "confirm_delete"
 
 
 # =========================================================

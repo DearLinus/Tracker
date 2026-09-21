@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from keyboards import MAIN_KEYBOARD, SETTINGS_KEYBOARD
+from keyboards import MAIN_KEYBOARD, SETTINGS_KEYBOARD, CONFIRM_DELETE_KEYBOARD
 from services.tracker_service import get_tracker_from_context as get_tracker
 
 
@@ -17,6 +17,8 @@ from handlers.constants import (
     SETTINGS,
     DARK_THEME,
     LIGHT_THEME,
+    DELETE_DATA_BUTTON,
+    CONFIRM_DELETE,
 )
 
 
@@ -87,5 +89,64 @@ async def change_graph_theme(
 
     await update.message.reply_text(
         message,
+        reply_markup=MAIN_KEYBOARD,
+    )
+
+
+async def request_delete_data(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    """Start a confirmation flow for deleting the user's data.
+
+    This sets a persisted state so the confirmation survives restarts.
+    """
+    user_id = get_user_id(update)
+
+    reset_state(context)
+    clear_user_state(update, context)
+
+    set_user_state(update, context, CONFIRM_DELETE)
+
+    await update.message.reply_text(
+        "🗑️ Delete My Data\n\n"
+        "This will permanently delete all your records and settings.\n"
+        "Are you sure you want to continue?",
+        reply_markup=CONFIRM_DELETE_KEYBOARD,
+    )
+
+
+async def confirm_delete_data(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    confirm: bool,
+):
+    user_id = get_user_id(update)
+
+    # Clear transient state first
+    reset_state(context)
+    clear_user_state(update, context)
+
+    tracker = get_tracker(context)
+
+    if confirm:
+        # delete_user will cascade to records/settings/user_states via FK
+        deleted = tracker.delete_user(user_id)
+
+        if deleted:
+            await update.message.reply_text(
+                "✅ Your data has been deleted.",
+                reply_markup=MAIN_KEYBOARD,
+            )
+        else:
+            await update.message.reply_text(
+                "ℹ️ No data found for your account.",
+                reply_markup=MAIN_KEYBOARD,
+            )
+        return
+
+    # Cancelled
+    await update.message.reply_text(
+        "❌ Deletion cancelled.",
         reply_markup=MAIN_KEYBOARD,
     )

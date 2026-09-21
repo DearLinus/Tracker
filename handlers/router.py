@@ -9,6 +9,7 @@ from handlers.records import (
     save_new_record,
 )
 from handlers.settings import show_settings, change_graph_theme
+from handlers.settings import request_delete_data, confirm_delete_data
 from handlers.statistics import show_statistics
 from handlers.history import show_history
 from handlers.navigation import go_back
@@ -39,6 +40,10 @@ from handlers.constants import (
     LIGHT_THEME_BUTTON,
     DARK_THEME,
     LIGHT_THEME,
+    DELETE_DATA_BUTTON,
+    CONFIRM_DELETE,
+    CONFIRM_YES_BUTTON,
+    CONFIRM_NO_BUTTON,
 )
 
 
@@ -127,6 +132,17 @@ async def handle_text(
 
         if text == LIGHT_THEME_BUTTON:
             await change_graph_theme(update, context, LIGHT_THEME)
+            return
+        if text == DELETE_DATA_BUTTON:
+            await request_delete_data(update, context)
+            return
+
+    elif awaiting == CONFIRM_DELETE:
+        if text == CONFIRM_YES_BUTTON:
+            await confirm_delete_data(update, context, True)
+            return
+        if text == CONFIRM_NO_BUTTON:
+            await confirm_delete_data(update, context, False)
             return
 
     elif awaiting == TODAY_COUNT:

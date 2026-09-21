@@ -18,6 +18,9 @@ from handlers.constants import (
 
     DARK_THEME_BUTTON,
     LIGHT_THEME_BUTTON,
+    DELETE_DATA_BUTTON,
+    CONFIRM_YES_BUTTON,
+    CONFIRM_NO_BUTTON,
 )
 
 
@@ -95,6 +98,27 @@ SETTINGS_KEYBOARD = ReplyKeyboardMarkup(
         [
             DARK_THEME_BUTTON,
             LIGHT_THEME_BUTTON,
+        ],
+        [
+            DELETE_DATA_BUTTON,
+        ],
+        [
+            BACK_BUTTON,
+        ],
+    ],
+    resize_keyboard=True,
+)
+
+
+# =========================================================
+# Confirm delete keyboard
+# =========================================================
+
+CONFIRM_DELETE_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        [
+            CONFIRM_YES_BUTTON,
+            CONFIRM_NO_BUTTON,
         ],
         [
             BACK_BUTTON,

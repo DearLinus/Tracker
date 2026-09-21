@@ -1,4 +1,5 @@
 import os
+import config
 from datetime import date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -27,11 +28,11 @@ class TrackerLogic:
     """
 
     def __init__(self, db_path=None):
-        resolved_path = db_path or os.getenv("DATABASE_PATH", "tracker.db")
+        # Prefer explicit injection of a db_path. If not provided, fall
+        # back to the application configuration. This makes tests simpler
+        # and avoids scattering os.getenv throughout business logic.
+        resolved_path = db_path or config.DATABASE_PATH
         self.database = TrackerDatabase(resolved_path)
-        # simple per-instance cache to avoid repeated DB hits for the same
-        # user existence checks during a request/handler lifecycle
-        self._user_exists_cache = {}
 
 
     # =========================================================
@@ -51,8 +52,7 @@ class TrackerLogic:
             username
         )
 
-        # created -> cache positive result to avoid immediate re-checks
-        self._user_exists_cache[user_id] = True
+        # No in-memory cache: rely on the database as the source of truth.
 
         timezone = self.database.get_setting(
             user_id,
@@ -75,13 +75,9 @@ class TrackerLogic:
 
         self._validate_user_id(user_id)
 
-        # check local cache first
-        if user_id in self._user_exists_cache:
-            return self._user_exists_cache[user_id]
-
-        exists = self.database.user_exists(user_id)
-        self._user_exists_cache[user_id] = exists
-        return exists
+        # Query the database directly. This keeps behavior simple and
+        # avoids subtle cache-staleness concerns across handler lifecycles.
+        return self.database.user_exists(user_id)
 
 
     # =========================================================
@@ -184,8 +180,7 @@ class TrackerLogic:
         if not deleted:
             raise ValueError("User does not exist.")
 
-        # Invalidate cache entry for this user so subsequent checks reflect the DB
-        self._user_exists_cache.pop(user_id, None)
+        # No cache to invalidate; database is authoritative.
 
         return True
 

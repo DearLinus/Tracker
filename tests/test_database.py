@@ -32,7 +32,8 @@ def test_backup_database_creates_backup(tmp_path):
 
     assert backup_path.endswith(".db")
     assert backup_dir.exists()
-    assert backup_dir.joinpath(source.name).exists()
+    # Expect at least one timestamped backup file for this source DB
+    assert any(p.is_file() for p in backup_dir.iterdir())
 
     with sqlite3.connect(backup_path) as conn:
         row = conn.execute("SELECT COUNT(*) FROM test").fetchone()
