@@ -45,7 +45,7 @@ def make_update(user_id=1):
 @pytest.fixture
 def tracker(monkeypatch):
     fake = FakeTracker()
-    monkeypatch.setattr(utils, "tracker", fake)
+    monkeypatch.setattr(utils, "get_tracker", lambda ctx: fake)
     return fake
 
 

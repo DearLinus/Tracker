@@ -16,8 +16,9 @@ from handlers.export import export_records
 
 from keyboards import MAIN_KEYBOARD
 
-from services.tracker_service import tracker
-from handlers.utils import get_user_id
+from services.tracker_service import get_tracker_from_context as get_tracker
+
+from handlers.utils import get_user_id, get_user_state
 
 from handlers.constants import (
     GRAPH_TIMELINE,
@@ -52,7 +53,7 @@ async def handle_text(
 
     user_id = get_user_id(update)
 
-    if not tracker.user_exists(user_id):
+    if not get_tracker(context).user_exists(user_id):
         await update.message.reply_text(
             "👋 Please start the bot first using /start"
         )
@@ -61,6 +62,11 @@ async def handle_text(
 
     text = update.message.text.strip()
     awaiting = context.user_data.get("awaiting")
+
+    # If there's no in-memory state, try to read persisted state (after restart)
+    if awaiting is None:
+        # get_user_state is synchronous; it may mirror persisted state into context
+        awaiting = get_user_state(update, context)
 
 
     # =====================================================

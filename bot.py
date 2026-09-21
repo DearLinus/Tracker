@@ -117,6 +117,10 @@ def main():
         .build()
     )
 
+    # Initialize application-scoped services
+    from services import tracker_service
+    tracker_service.setup_application(app)
+
     register_handlers(app)
 
     app.add_handler(

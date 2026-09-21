@@ -7,7 +7,8 @@ import logging
 
 from keyboards import MAIN_KEYBOARD, BACK_KEYBOARD
 from config import SUCCESS_STICKER_ID, ERROR_STICKER_ID
-from services.tracker_service import tracker
+from services.tracker_service import get_tracker_from_context as get_tracker
+
 from handlers.constants import (
     COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE,
     GENERIC_RECORD_ERROR_MESSAGE,
@@ -46,10 +47,10 @@ async def start_today_record(
     # persist and mirror the new awaiting state
     set_user_state(update, context, TODAY_COUNT)
 
-    today_date = get_user_today(update)
+    today_date = get_user_today(update, context)
     user_id = get_user_id(update)
 
-    existing = tracker.get_record(
+    existing = get_tracker(context).get_record(
         user_id,
         today_date
     )
@@ -91,12 +92,12 @@ async def save_today_record(
         )
         return
 
-    today_date = get_user_today(update)
+    today_date = get_user_today(update, context)
 
     try:
         # save_record is an upsert: it creates the record
         # or overwrites the existing one for that date.
-        tracker.save_record(
+        get_tracker(context).save_record(
             user_id,
             today_date,
             count
@@ -227,14 +228,14 @@ async def save_new_record(
     try:
         user_id = get_user_id(update)
 
-        existing = tracker.get_record(
+        existing = get_tracker(context).get_record(
             user_id,
             record_date
         )
 
         # save_record is an upsert, so one call covers both cases.
         # `existing` is only used to pick the wording of the reply.
-        tracker.save_record(
+        get_tracker(context).save_record(
             user_id,
             record_date,
             count
@@ -256,6 +257,7 @@ async def save_new_record(
         )
 
         reset_state(context)
+        clear_user_state(update, context)
 
     except ValueError as e:
         await update.message.reply_text(
@@ -273,6 +275,7 @@ async def save_new_record(
         )
 
         reset_state(context)
+        clear_user_state(update, context)
 
         await update.message.reply_text(
             "⚠️ I couldn't save the record.\n\n"

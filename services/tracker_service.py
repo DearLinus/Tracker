@@ -1,27 +1,58 @@
 from logic import TrackerLogic
 
 
-_tracker = None
+def setup_application(app, db_path=None):
+    """Create a TrackerLogic instance and attach it to the Application.
+
+    The tracker is stored on ``app.bot_data["tracker"]`` so each Telegram
+    Application owns its own service instance instead of sharing a process-wide
+    singleton.
+    """
+    tracker_instance = TrackerLogic(db_path)
+
+    if getattr(app, "bot_data", None) is None:
+        try:
+            app.bot_data = {}
+        except Exception as exc:
+            raise RuntimeError(
+                "Application object must allow setting .bot_data attribute"
+            ) from exc
+
+    app.bot_data["tracker"] = tracker_instance
+    return tracker_instance
 
 
-def get_tracker():
-    global _tracker
+def get_tracker_from_context(context):
+    """Return the TrackerLogic instance stored on the Telegram context.
 
-    if _tracker is None:
-        _tracker = TrackerLogic()
+    Looks up ``context.bot_data["tracker"]``, then
+    ``context.application.bot_data["tracker"]``. Raises RuntimeError if the
+    application was not initialized with ``setup_application()``.
+    """
+    if context is None:
+        raise RuntimeError("No context provided to get_tracker_from_context")
 
-    return _tracker
+    tracker = _tracker_from_bot_data(getattr(context, "bot_data", None))
+    if tracker is None:
+        application = getattr(context, "application", None)
+        tracker = _tracker_from_bot_data(
+            getattr(application, "bot_data", None) if application is not None else None
+        )
+
+    if tracker is None:
+        raise RuntimeError(
+            "TrackerLogic instance not found in application. "
+            "Call services.tracker_service.setup_application(app) in bot.main()."
+        )
+
+    return tracker
 
 
-class LazyTrackerProxy:
-    def __getattr__(self, name):
-        return getattr(get_tracker(), name)
+def _tracker_from_bot_data(bot_data):
+    if bot_data is None:
+        return None
 
-    def __setattr__(self, name, value):
-        if name == "_tracker":
-            object.__setattr__(self, name, value)
-            return
-        setattr(get_tracker(), name, value)
-
-
-tracker = LazyTrackerProxy()
+    try:
+        return bot_data.get("tracker")
+    except (AttributeError, TypeError):
+        return None

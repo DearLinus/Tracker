@@ -55,3 +55,4 @@ def test_main_builds_application_with_token(monkeypatch):
     assert app.token == "token-123"
     assert app.polling_called is True
     assert "registered" in app.handlers
+    assert "tracker" in app.bot_data

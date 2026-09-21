@@ -39,10 +39,13 @@ async def test_history_without_records(monkeypatch):
     context = FakeContext()
 
 
-    monkeypatch.setattr(
-        "handlers.history.tracker.get_records",
-        lambda *args: {}
-    )
+    class FakeTracker:
+        @staticmethod
+        def get_records(user_id):
+            return {}
+
+    fake = FakeTracker()
+    monkeypatch.setattr("handlers.history.get_tracker", lambda ctx: fake, raising=True)
 
 
     await show_history(
@@ -74,12 +77,13 @@ async def test_history_shows_records(monkeypatch):
     ).date()
 
 
-    monkeypatch.setattr(
-        "handlers.history.tracker.get_records",
-        lambda *args: {
-            today: 8
-        }
-    )
+    class FakeTracker:
+        @staticmethod
+        def get_records(user_id):
+            return {today: 8}
+
+    fake = FakeTracker()
+    monkeypatch.setattr("handlers.history.get_tracker", lambda ctx: fake, raising=True)
 
 
     await show_history(
@@ -108,10 +112,13 @@ async def test_history_marks_missing_days_as_no_record(monkeypatch):
     today = datetime.now(ZoneInfo(DEFAULT_TIMEZONE)).date()
     recent_day = today - __import__("datetime").timedelta(days=1)
 
-    monkeypatch.setattr(
-        "handlers.history.tracker.get_records",
-        lambda *args: {recent_day: 8}
-    )
+    class FakeTracker:
+        @staticmethod
+        def get_records(user_id):
+            return {recent_day: 8}
+
+    fake = FakeTracker()
+    monkeypatch.setattr("handlers.history.get_tracker", lambda ctx: fake, raising=True)
 
     await show_history(update, context)
 
@@ -136,10 +143,12 @@ async def test_history_uses_correct_user_id(monkeypatch):
         return {}
 
 
-    monkeypatch.setattr(
-        "handlers.history.tracker.get_records",
-        fake_get_records
-    )
+    class FakeTracker:
+        def get_records(self, user_id):
+            return fake_get_records(user_id)
+
+    fake = FakeTracker()
+    monkeypatch.setattr("handlers.history.get_tracker", lambda ctx: fake, raising=True)
 
 
     await show_history(

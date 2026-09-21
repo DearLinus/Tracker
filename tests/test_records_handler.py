@@ -50,10 +50,12 @@ async def test_start_today_record_sets_state(monkeypatch):
     update = FakeUpdate()
     context = FakeContext()
 
-    monkeypatch.setattr(
-        "handlers.records.tracker.get_record",
-        lambda *args: None
-    )
+    class FakeTracker1:
+        @staticmethod
+        def get_record(*args):
+            return None
+
+    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: FakeTracker1(), raising=True)
 
     await start_today_record(
         update,
@@ -78,10 +80,12 @@ async def test_start_today_record_existing_record(monkeypatch):
     update = FakeUpdate()
     context = FakeContext()
 
-    monkeypatch.setattr(
-        "handlers.records.tracker.get_record",
-        lambda *args: 5
-    )
+    class FakeTracker2:
+        @staticmethod
+        def get_record(*args):
+            return 5
+
+    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: FakeTracker2(), raising=True)
 
     await start_today_record(
         update,
@@ -112,28 +116,26 @@ async def test_save_today_record_creates_record(monkeypatch):
     saved = []
 
 
-    monkeypatch.setattr(
-        "handlers.records.tracker.get_record",
-        lambda *args: None
-    )
+    class FakeTracker3:
+        @staticmethod
+        def get_record(*args):
+            return None
+
+        @staticmethod
+        def save_record(user_id, record_date, count):
+            saved.append((user_id, count))
+
+    fake = FakeTracker3()
+    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: fake, raising=True)
 
 
-    def fake_save(
-        user_id,
-        record_date,
-        count
-    ):
-        saved.append(
-            (
-                user_id,
-                count
-            )
-        )
+    async def fake_send_sticker(*args, **kwargs):
+        pass
 
 
     monkeypatch.setattr(
-        "handlers.records.tracker.save_record",
-        fake_save
+        "handlers.records.send_sticker_if_available",
+        fake_send_sticker
     )
 
 
@@ -230,17 +232,17 @@ async def test_save_new_record_creates_record(monkeypatch):
     saved = []
 
 
-    monkeypatch.setattr(
-        "handlers.records.tracker.get_record",
-        lambda *args: None
-    )
+    class FakeTracker4:
+        @staticmethod
+        def get_record(*args):
+            return None
 
-
-    monkeypatch.setattr(
-        "handlers.records.tracker.save_record",
-        lambda user_id, date, count:
+        @staticmethod
+        def save_record(user_id, date, count):
             saved.append(count)
-    )
+
+    fake = FakeTracker4()
+    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: fake, raising=True)
 
 
     async def fake_send_sticker(*args, **kwargs):

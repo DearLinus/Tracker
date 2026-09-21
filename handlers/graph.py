@@ -16,7 +16,8 @@ from keyboards import (
     GRAPH_KEYBOARD,
 )
 
-from services.tracker_service import tracker
+from services.tracker_service import get_tracker_from_context as get_tracker
+
 from graph import create_graph
 
 from handlers.constants import (
@@ -61,14 +62,14 @@ async def send_graph(
 
     try:
 
-        theme = get_graph_theme(update)
+        theme = get_graph_theme(update, context)
 
         graph_image = create_graph(
-        tracker,
+        get_tracker(context),
         user_id=get_user_id(update),
         timeline=timeline_name,
         theme=theme,
-        today=get_user_today(update),
+        today=get_user_today(update, context),
     )
 
         if graph_image is None:

@@ -5,7 +5,8 @@ from keyboards import MAIN_KEYBOARD
 from config import WELCOME_STICKER_ID
 from handlers.constants import WELCOME_MESSAGE
 
-from services.tracker_service import tracker
+from services.tracker_service import get_tracker_from_context as get_tracker
+
 from handlers.utils import (
     reset_state,
     send_sticker_if_available,
@@ -22,7 +23,7 @@ async def start(
 
     user = update.effective_user
 
-    tracker.create_user(
+    get_tracker(context).create_user(
         user.id,
         user.username,
     )

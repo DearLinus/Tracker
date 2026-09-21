@@ -248,7 +248,11 @@ It receives the user's records and graph settings and produces the requested gra
 
 ### `services/tracker_service.py`
 
-Provides the shared `TrackerLogic` instance used by the Telegram handlers.
+Creates the application-scoped `TrackerLogic` instance and stores it on
+the Telegram `Application` as `bot_data["tracker"]`.
+
+Handlers retrieve it with `get_tracker_from_context(context)`, so each
+bot instance owns its tracker instead of sharing a process-wide singleton.
 
 ### `timezone.py`
 

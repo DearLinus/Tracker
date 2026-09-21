@@ -44,7 +44,7 @@ def real_tracker(tmp_path, monkeypatch, mock_sticker):
     logic = TrackerLogic(str(tmp_path / "test.db"))
     logic.create_user(FakeUser.id, FakeUser.username)
 
-    monkeypatch.setattr("handlers.records.tracker", logic)
+    monkeypatch.setattr("handlers.records.get_tracker", lambda ctx: logic, raising=True)
     return logic
 
 

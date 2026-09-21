@@ -2,7 +2,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from keyboards import MAIN_KEYBOARD
-from services.tracker_service import tracker
+from services.tracker_service import get_tracker_from_context as get_tracker
+
 from handlers.utils import get_user_id, reset_state, clear_user_state
 
 
@@ -16,7 +17,7 @@ async def show_statistics(
 
     user_id = get_user_id(update)
 
-    stats = tracker.get_statistics(user_id)
+    stats = get_tracker(context).get_statistics(user_id)
 
     if stats["days"] == 0:
         await update.message.reply_text(

@@ -47,7 +47,7 @@ async def test_show_settings_sets_state(monkeypatch):
 
     monkeypatch.setattr(
         "handlers.settings.get_graph_theme",
-        lambda update: "dark"
+        lambda update, context: "dark"
     )
 
 
@@ -81,17 +81,11 @@ async def test_change_graph_theme_saves_setting(monkeypatch):
     saved = []
 
 
-    monkeypatch.setattr(
-        "handlers.settings.tracker.set_setting",
-        lambda user_id, key, value:
-            saved.append(
-                (
-                    user_id,
-                    key,
-                    value
-                )
-            )
-    )
+    class FakeTracker:
+        def set_setting(self, user_id, key, value):
+            saved.append((user_id, key, value))
+
+    monkeypatch.setattr("handlers.settings.get_tracker", lambda ctx: FakeTracker(), raising=True)
 
 
     await change_graph_theme(

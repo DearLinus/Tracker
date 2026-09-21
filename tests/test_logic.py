@@ -1,6 +1,5 @@
 import pytest
 
-import services.tracker_service as tracker_service
 from logic import TrackerLogic
 from datetime import date, timedelta
 from timezone import get_today
@@ -20,15 +19,6 @@ def tracker(tmp_path):
 # =========================================================
 # USERS
 # =========================================================
-
-
-def test_get_tracker_is_lazy(monkeypatch):
-    monkeypatch.setattr(tracker_service, "_tracker", None)
-
-    logic = tracker_service.get_tracker()
-
-    assert isinstance(logic, TrackerLogic)
-    assert tracker_service._tracker is logic
 
 
 def test_create_user(tracker):

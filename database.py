@@ -158,17 +158,33 @@ class TrackerDatabase:
             if existing is not None:
                 continue
 
-            # Execute statements one-by-one to avoid implicit executescript
-            # transactional quirks and to keep migrations atomic under the
-            # surrounding connection() transaction.
-            statements = [s.strip() for s in migration_sql.split(";") if s.strip()]
-            for stmt in statements:
-                connection.execute(stmt)
+            # Start an explicit transaction so that multiple statements
+            # within a single migration are applied atomically. If any
+            # statement fails, roll back the entire migration.
+            connection.execute("BEGIN")
 
-            connection.execute(
-                "INSERT INTO schema_migrations (migration_name) VALUES (?)",
-                (migration_name,),
-            )
+            try:
+                # Execute statements one-by-one to avoid implicit executescript
+                statements = [s.strip() for s in migration_sql.split(";") if s.strip()]
+                for stmt in statements:
+                    connection.execute(stmt)
+
+                connection.execute(
+                    "INSERT INTO schema_migrations (migration_name) VALUES (?)",
+                    (migration_name,),
+                )
+
+                # commit the migration transaction
+                connection.execute("COMMIT")
+
+            except Exception:
+                # Rollback this migration so partial changes are not left behind
+                try:
+                    connection.execute("ROLLBACK")
+                except Exception:
+                    # If rollback itself fails, log/raise the original error
+                    pass
+                raise
 
     # =========================================================
     # USERS

@@ -2,7 +2,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from keyboards import MAIN_KEYBOARD, SETTINGS_KEYBOARD
-from services.tracker_service import tracker
+from services.tracker_service import get_tracker_from_context as get_tracker
+
 
 from handlers.utils import (
     get_user_id,
@@ -27,7 +28,7 @@ async def show_settings(
     reset_state(context)
     clear_user_state(update, context)
 
-    current_theme = get_graph_theme(update)
+    current_theme = get_graph_theme(update, context)
 
     theme_text = (
         "🌙 Dark"
@@ -54,7 +55,7 @@ async def change_graph_theme(
 
     user_id = get_user_id(update)
 
-    tracker.set_setting(
+    get_tracker(context).set_setting(
         user_id,
         "graph_theme",
         theme,

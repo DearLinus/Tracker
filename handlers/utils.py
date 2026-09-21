@@ -3,7 +3,8 @@ from telegram.ext import ContextTypes
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from services.tracker_service import tracker
+from services.tracker_service import get_tracker_from_context as get_tracker
+
 
 from timezone import DEFAULT_TIMEZONE
 
@@ -21,7 +22,7 @@ def set_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE, state: st
     context.user_data["awaiting"] = state
     try:
         user_id = get_user_id(update)
-        tracker.set_user_state(user_id, "awaiting", state)
+        get_tracker(context).set_user_state(user_id, "awaiting", state)
     except Exception:
         # persistence is best-effort; do not fail the handler flow
         pass
@@ -34,7 +35,7 @@ def get_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         user_id = get_user_id(update)
-        state = tracker.get_user_state(user_id, "awaiting")
+        state = get_tracker(context).get_user_state(user_id, "awaiting")
         if state is not None:
             # mirror into context for faster subsequent access
             context.user_data["awaiting"] = state
@@ -48,7 +49,7 @@ def clear_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("awaiting", None)
     try:
         user_id = get_user_id(update)
-        tracker.delete_user_state(user_id, "awaiting")
+        get_tracker(context).delete_user_state(user_id, "awaiting")
     except Exception:
         pass
 
@@ -63,34 +64,38 @@ async def send_sticker_if_available(update: Update, sticker_id: str | None):
         pass
 
 
-def get_graph_theme(update):
+def get_graph_theme(update, context=None):
     user_id = get_user_id(update)
 
-    return tracker.get_setting(
-        user_id,
-        "graph_theme",
-        default="dark",
-    )
+    try:
+        return get_tracker(context).get_setting(
+            user_id,
+            "graph_theme",
+            default="dark",
+        )
+    except (AttributeError, TypeError, RuntimeError):
+        return "dark"
 
 
 
-def get_user_timezone(update):
-
+def get_user_timezone(update, context=None):
     user_id = get_user_id(update)
 
-    timezone = tracker.get_setting(
-        user_id,
-        "timezone",
-        DEFAULT_TIMEZONE
-    )
+    try:
+        timezone = get_tracker(context).get_setting(
+            user_id,
+            "timezone",
+            DEFAULT_TIMEZONE
+        )
+    except (AttributeError, TypeError, RuntimeError):
+        return DEFAULT_TIMEZONE
 
     return timezone
 
 
 
-def get_user_today(update):
-
-    timezone = get_user_timezone(update)
+def get_user_today(update, context=None):
+    timezone = get_user_timezone(update, context)
 
     return datetime.now(
         ZoneInfo(timezone)

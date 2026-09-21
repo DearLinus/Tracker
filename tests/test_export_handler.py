@@ -47,10 +47,13 @@ async def test_export_without_records(monkeypatch):
     context = FakeContext()
 
 
-    monkeypatch.setattr(
-        "handlers.export.tracker.get_records",
-        lambda user_id: {}
-    )
+    class FakeTracker:
+        @staticmethod
+        def get_records(user_id):
+            return {}
+
+    fake = FakeTracker()
+    monkeypatch.setattr("handlers.export.get_tracker", lambda ctx: fake, raising=True)
 
 
     await export_records(
@@ -73,12 +76,13 @@ async def test_export_creates_file(monkeypatch):
     context = FakeContext()
 
 
-    monkeypatch.setattr(
-        "handlers.export.tracker.get_records",
-        lambda user_id: {
-            date(2026, 9, 10): 8
-        }
-    )
+    class FakeTracker:
+        @staticmethod
+        def get_records(user_id):
+            return {date(2026, 9, 10): 8}
+
+    fake = FakeTracker()
+    monkeypatch.setattr("handlers.export.get_tracker", lambda ctx: fake, raising=True)
 
 
     await export_records(
@@ -111,10 +115,12 @@ async def test_export_uses_correct_user_id(monkeypatch):
         return {}
 
 
-    monkeypatch.setattr(
-        "handlers.export.tracker.get_records",
-        fake_get_records
-    )
+    class FakeTracker:
+        def get_records(self, user_id):
+            return fake_get_records(user_id)
+
+    fake = FakeTracker()
+    monkeypatch.setattr("handlers.export.get_tracker", lambda ctx: fake, raising=True)
 
 
     await export_records(

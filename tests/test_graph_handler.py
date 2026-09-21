@@ -91,7 +91,7 @@ def deps(monkeypatch, events):
         get_user_today=MagicMock(return_value=TODAY),
     )
 
-    monkeypatch.setattr(gh, "tracker", d.tracker)
+    monkeypatch.setattr(gh, "get_tracker", lambda ctx: d.tracker)
     monkeypatch.setattr(gh, "reset_state", d.reset_state)
     monkeypatch.setattr(gh, "create_graph", d.create_graph)
     monkeypatch.setattr(gh, "get_graph_theme", d.get_graph_theme)
@@ -179,8 +179,8 @@ async def test_user_id_theme_and_today_come_from_update(update, context, deps):
     await gh.send_graph(update, context, VALID_TIMELINE)
 
     deps.get_user_id.assert_called_once_with(update)
-    deps.get_graph_theme.assert_called_once_with(update)
-    deps.get_user_today.assert_called_once_with(update)
+    deps.get_graph_theme.assert_called_once_with(update, context)
+    deps.get_user_today.assert_called_once_with(update, context)
 
 
 async def test_photo_is_sent_with_correct_filename(update, context, deps):

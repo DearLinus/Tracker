@@ -184,6 +184,9 @@ class TrackerLogic:
         if not deleted:
             raise ValueError("User does not exist.")
 
+        # Invalidate cache entry for this user so subsequent checks reflect the DB
+        self._user_exists_cache.pop(user_id, None)
+
         return True
 
 

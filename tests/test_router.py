@@ -47,10 +47,12 @@ async def test_router_rejects_unknown_user(monkeypatch):
     context = FakeContext()
 
 
-    monkeypatch.setattr(
-        "handlers.router.tracker.user_exists",
-        lambda user_id: False
-    )
+    class FakeTrackerA:
+        @staticmethod
+        def user_exists(user_id):
+            return False
+
+    monkeypatch.setattr("handlers.router.get_tracker", lambda ctx: FakeTrackerA(), raising=True)
 
 
     await handle_text(
@@ -80,10 +82,12 @@ async def test_router_calls_today_record(monkeypatch):
     context = FakeContext()
 
 
-    monkeypatch.setattr(
-        "handlers.router.tracker.user_exists",
-        lambda user_id: True
-    )
+    class FakeTrackerB:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+
+    monkeypatch.setattr("handlers.router.get_tracker", lambda ctx: FakeTrackerB(), raising=True)
 
 
     called = []
@@ -126,10 +130,12 @@ async def test_router_saves_today_record_when_waiting(monkeypatch):
     context.user_data["awaiting"] = "today_count"
 
 
-    monkeypatch.setattr(
-        "handlers.router.tracker.user_exists",
-        lambda user_id: True
-    )
+    class FakeTrackerC:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+
+    monkeypatch.setattr("handlers.router.get_tracker", lambda ctx: FakeTrackerC(), raising=True)
 
 
     called = []
@@ -161,10 +167,12 @@ async def test_router_allows_menu_action_while_waiting(monkeypatch):
     context = FakeContext()
     context.user_data["awaiting"] = "today_count"
 
-    monkeypatch.setattr(
-        "handlers.router.tracker.user_exists",
-        lambda user_id: True
-    )
+    class FakeTrackerD:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+
+    monkeypatch.setattr("handlers.router.get_tracker", lambda ctx: FakeTrackerD(), raising=True)
 
     called = []
 

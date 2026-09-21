@@ -24,17 +24,17 @@ class FakeUpdate:
 
 
 class FakeContext:
-    def __init__(self):
+    def __init__(self, tracker=None):
         self.user_data = {
             "awaiting": "something"
         }
+        self.bot_data = {}
+        if tracker is not None:
+            self.bot_data["tracker"] = tracker
 
 
 @pytest.mark.asyncio
-async def test_start_creates_user(monkeypatch, mock_sticker):
-
-    update = FakeUpdate()
-    context = FakeContext()
+async def test_start_creates_user(mock_sticker):
 
     created_users = []
 
@@ -43,10 +43,12 @@ async def test_start_creates_user(monkeypatch, mock_sticker):
             (user_id, username)
         )
 
-    monkeypatch.setattr(
-        "handlers.start.tracker.create_user",
-        fake_create_user
-    )
+    class FakeTracker1:
+        def create_user(self, user_id, username):
+            return fake_create_user(user_id, username)
+
+    update = FakeUpdate()
+    context = FakeContext(tracker=FakeTracker1())
 
 
     await start(
@@ -61,15 +63,14 @@ async def test_start_creates_user(monkeypatch, mock_sticker):
 
 
 @pytest.mark.asyncio
-async def test_start_sends_welcome_message(monkeypatch, mock_sticker):
+async def test_start_sends_welcome_message(mock_sticker):
+
+    class FakeTracker2:
+        def create_user(self, *args):
+            return None
 
     update = FakeUpdate()
-    context = FakeContext()
-
-    monkeypatch.setattr(
-        "handlers.start.tracker.create_user",
-        lambda *args: None
-    )
+    context = FakeContext(tracker=FakeTracker2())
 
 
     await start(
@@ -89,15 +90,14 @@ async def test_start_sends_welcome_message(monkeypatch, mock_sticker):
 
 
 @pytest.mark.asyncio
-async def test_start_resets_state(monkeypatch, mock_sticker):
+async def test_start_resets_state(mock_sticker):
+
+    class FakeTracker3:
+        def create_user(self, *args):
+            return None
 
     update = FakeUpdate()
-    context = FakeContext()
-
-    monkeypatch.setattr(
-        "handlers.start.tracker.create_user",
-        lambda *args: None
-    )
+    context = FakeContext(tracker=FakeTracker3())
 
 
     await start(

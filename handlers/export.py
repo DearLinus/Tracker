@@ -5,7 +5,8 @@ import tempfile
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from services.tracker_service import tracker
+from services.tracker_service import get_tracker_from_context as get_tracker
+
 from handlers.utils import get_user_id
 
 
@@ -16,7 +17,7 @@ async def export_records(
 
     user_id = get_user_id(update)
 
-    records = tracker.get_records(user_id)
+    records = get_tracker(context).get_records(user_id)
 
     if not records:
         await update.message.reply_text(
