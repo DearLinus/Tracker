@@ -36,7 +36,7 @@ Generate charts for:
 - 6 Months
 - 1 Year
 
-The graph also includes a visual guide for the current day's value when available.
+The graph includes a visual guide for the most recently recorded value within the selected time range, when available.
 
 ### 🎨 Theme Support
 
@@ -60,13 +60,15 @@ separate using their Telegram user ID.
 
 ### 🌍 Timezone-aware Date Logic
 
-The app uses a default timezone of:
+The app currently uses the following default timezone for date calculations:
 
 ```text
 Asia/Tehran
 ```
 
-Users can override it in settings. Date calculations are based on the user's local timezone so the "today" value is correct for each user.
+At the moment, users cannot change their timezone from the bot settings.
+
+User-configurable timezone support is planned for a future update. Once implemented, date calculations such as "today" will use each user's selected local timezone.
 
 ### ⚠️ Validation and Error Handling
 
