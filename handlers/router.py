@@ -20,6 +20,8 @@ from keyboards import MAIN_KEYBOARD
 from services.tracker_service import get_tracker_from_context as get_tracker
 
 from handlers.utils import get_user_id, get_user_state, reset_state, clear_user_state
+import asyncio
+import functools
 
 from handlers.constants import (
     GRAPH_TIMELINE,
@@ -63,6 +65,24 @@ async def handle_text(
             "👋 Please start the bot first using /start"
         )
         return
+    # Access control: block early if configured
+    from handlers.utils import is_user_allowed
+    from handlers.constants import ACCESS_DENIED_MESSAGE
+    if not is_user_allowed(user_id):
+        await update.message.reply_text(
+            ACCESS_DENIED_MESSAGE,
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+    # Private chat enforcement
+    from handlers.utils import is_private_chat
+    from handlers.constants import PRIVATE_CHAT_REQUIRED_MESSAGE
+    if not is_private_chat(update):
+        await update.message.reply_text(
+            PRIVATE_CHAT_REQUIRED_MESSAGE,
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
 
 
     text = update.message.text.strip()
@@ -71,7 +91,8 @@ async def handle_text(
     # If there's no in-memory state, try to read persisted state (after restart)
     if awaiting is None:
         # get_user_state is synchronous; it may mirror persisted state into context
-        awaiting = get_user_state(update, context)
+        # Offload get_user_state in case it accesses the DB
+        awaiting = await asyncio.to_thread(functools.partial(get_user_state, update, context))
 
 
     # =====================================================
@@ -173,7 +194,7 @@ async def handle_text(
     # execution of previously-selected actions after an unrelated message.
     reset_state(context)
     try:
-        clear_user_state(update, context)
+        await asyncio.to_thread(functools.partial(clear_user_state, update, context))
     except Exception:
         # Be conservative: do not fail on clear_user_state issues
         pass

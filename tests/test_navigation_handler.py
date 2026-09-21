@@ -50,7 +50,10 @@ async def test_go_back_resets_state():
         def get_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker()}
+    # wrap with autospeced tracker to catch API drift in tests
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     await go_back(update, context)
 

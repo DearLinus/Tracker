@@ -3,6 +3,9 @@ from datetime import timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
 
+import asyncio
+import functools
+
 from keyboards import HISTORY_KEYBOARD
 from services.tracker_service import get_tracker_from_context as get_tracker
 
@@ -20,11 +23,13 @@ async def show_history(
     context: ContextTypes.DEFAULT_TYPE
 ):
     reset_state(context)
-    clear_user_state(update, context)
+    # clear persisted state off the event loop
+    await asyncio.to_thread(functools.partial(clear_user_state, update, context))
 
     user_id = get_user_id(update)
 
-    records = get_tracker(context).get_records(user_id)
+    # fetch records in a thread to avoid blocking the event loop
+    records = await asyncio.to_thread(functools.partial(get_tracker(context).get_records, user_id))
 
     lines = [
         "📜 Last 7 Days\n"

@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 import logging
 
 from services.tracker_service import get_tracker_from_context as get_tracker
+import os
+from typing import Set
 
 
 from timezone import DEFAULT_TIMEZONE
@@ -144,3 +146,65 @@ def parse_int(text: str) -> int:
         return int(normalized)
     except ValueError:
         raise
+
+
+_CACHED_ALLOWED_IDS: set | None = None
+_CACHED_ALLOWED_RAW: str | None = None
+
+
+def _parse_allowed_user_ids() -> Set[int]:
+    """Parse ALLOWED_USER_IDS env var into a set of ints.
+
+    Format: comma-separated integers, e.g. "123,456".
+    Empty or missing value returns an empty set meaning "no restriction".
+    Malformed entries are ignored.
+    """
+    global _CACHED_ALLOWED_IDS, _CACHED_ALLOWED_RAW
+    raw = os.getenv("ALLOWED_USER_IDS", "").strip()
+
+    # If cached and the raw env matches previous value, return cached set
+    if _CACHED_ALLOWED_RAW is not None and raw == _CACHED_ALLOWED_RAW and _CACHED_ALLOWED_IDS is not None:
+        return set(_CACHED_ALLOWED_IDS)
+
+    if not raw:
+        _CACHED_ALLOWED_IDS = set()
+        _CACHED_ALLOWED_RAW = raw
+        return set()
+
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    ids: Set[int] = set()
+    for p in parts:
+        try:
+            ids.add(int(p))
+        except ValueError:
+            # Ignore malformed entries
+            continue
+    _CACHED_ALLOWED_IDS = set(ids)
+    _CACHED_ALLOWED_RAW = raw
+    return set(ids)
+
+
+def is_user_allowed(user_id: int) -> bool:
+    """Return True if the user_id is allowed to use the bot.
+
+    If `ALLOWED_USER_IDS` is not set or empty, all users are allowed.
+    """
+    allowed = _parse_allowed_user_ids()
+    if not allowed:
+        return True
+    return user_id in allowed
+
+
+def is_private_chat(update) -> bool:
+    """Return True if the incoming update is from a private chat (one-to-one).
+
+    Works with `Update` objects or any object exposing `message.chat.type`.
+    """
+    try:
+        chat_type = update.message.chat.type
+    except Exception:
+        # Keep backwards compatibility with tests that don't model chat.type:
+        # if chat.type is missing, assume private.
+        return True
+
+    return chat_type == "private"

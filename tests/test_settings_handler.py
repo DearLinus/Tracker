@@ -61,7 +61,9 @@ async def test_show_settings_sets_state(monkeypatch):
         def set_user_state(user_id, key, value):
             return None
 
-    context.bot_data["tracker"] = _StateTracker()
+    from tests.helpers import autospec_tracker
+
+    context.bot_data["tracker"] = autospec_tracker(_StateTracker())
 
     await show_settings(
         update,
@@ -109,7 +111,9 @@ async def test_change_graph_theme_saves_setting(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
 
     await change_graph_theme(
@@ -151,7 +155,9 @@ async def test_change_graph_theme_invalid_theme(monkeypatch):
         def get_setting(user_id, key, default=None):
             return default
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     # Provide no-op persisted-state methods used by clear_user_state
     FakeTracker.delete_user_state = staticmethod(lambda user_id, key: None)
@@ -190,7 +196,9 @@ async def test_delete_data_flow(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     # Request delete sets confirmation state and sends confirmation message
     await request_delete_data(update, context)

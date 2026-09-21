@@ -76,7 +76,9 @@ async def test_start_today_record_sets_state(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker1()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker1())}
 
     await start_today_record(
         update,
@@ -118,7 +120,9 @@ async def test_start_today_record_existing_record(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker2()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker2())}
 
     await start_today_record(
         update,
@@ -170,8 +174,10 @@ async def test_save_today_record_creates_record(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
+    from tests.helpers import autospec_tracker
+
     fake = FakeTracker3()
-    context.bot_data = {"tracker": fake}
+    context.bot_data = {"tracker": autospec_tracker(fake)}
 
 
     async def fake_send_sticker(*args, **kwargs):
@@ -364,7 +370,9 @@ async def test_save_today_record_negative_count():
         def get_setting(user_id, key, default=None):
             return default
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     await save_today_record(
         update,
@@ -384,7 +392,9 @@ async def test_save_new_record_invalid_date_and_count_cases():
         def get_setting(user_id, key, default=None):
             return default
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     # invalid date
     update1 = FakeUpdate("2026-13-01 5")

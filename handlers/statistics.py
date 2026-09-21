@@ -1,5 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
+import asyncio
+import functools
 
 from keyboards import MAIN_KEYBOARD
 from services.tracker_service import get_tracker_from_context as get_tracker
@@ -13,11 +15,13 @@ async def show_statistics(
 ):
 
     reset_state(context)
-    clear_user_state(update, context)
+    # clear persisted state off the event loop
+    await asyncio.to_thread(functools.partial(clear_user_state, update, context))
 
     user_id = get_user_id(update)
 
-    stats = get_tracker(context).get_statistics(user_id)
+    # fetch statistics in a thread to avoid blocking the event loop
+    stats = await asyncio.to_thread(functools.partial(get_tracker(context).get_statistics, user_id))
 
     if stats["days"] == 0:
         await update.message.reply_text(

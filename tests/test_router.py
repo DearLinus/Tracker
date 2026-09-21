@@ -410,7 +410,9 @@ async def test_back_button_calls_go_back(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     called = []
 
@@ -446,7 +448,9 @@ async def test_main_menu_calls_various_handlers(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     called = {}
 
@@ -518,7 +522,9 @@ async def test_state_fallback_uses_persisted_state(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     # Simulate persisted state being read when in-memory is absent
     monkeypatch.setattr("handlers.router.get_user_state", lambda u, c: "today_count")
@@ -549,7 +555,9 @@ async def test_settings_state_actions(monkeypatch):
         def get_setting(user_id, key, default=None):
             return default
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     called = {}
 
@@ -591,7 +599,9 @@ async def test_confirm_delete_buttons_call_confirm(monkeypatch):
         def get_setting(user_id, key, default=None):
             return default
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     calls = []
 
@@ -622,7 +632,9 @@ async def test_unknown_message_shows_main_keyboard(monkeypatch):
         def get_setting(user_id, key, default=None):
             return default
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     # ensure in-memory key exists so get_user_state() is not invoked
     context.user_data['awaiting'] = None

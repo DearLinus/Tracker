@@ -113,6 +113,72 @@ def _remove_duplicate_indexes(connection):
 MIGRATIONS.append(("005_remove_duplicate_indexes", _remove_duplicate_indexes))
 
 
+def _drop_explicit_redundant_indexes(connection):
+    """
+    Drop explicit, named indexes (like `idx_records_user_date`) when SQLite
+    already created an implicit index (sqlite_autoindex_*) covering the same
+    columns (typically for PRIMARY KEY or UNIQUE constraints). This avoids
+    redundant indexes that waste space and slow writes.
+    """
+    canonical = {
+        "records": ("idx_records_user_date", ("user_id", "record_date")),
+        "settings": ("idx_settings_user_key", ("user_id", "setting_key")),
+    }
+
+    for tbl, (canonical_name, canonical_cols) in canonical.items():
+        try:
+            idx_list = list(connection.execute(f"PRAGMA index_list('{tbl}')"))
+        except Exception:
+            continue
+
+        # Build a map: index_name -> tuple(column names)
+        idx_cols = {}
+        for row in idx_list:
+            name = row[1]
+            try:
+                info = list(connection.execute(f"PRAGMA index_info('{name}')"))
+            except Exception:
+                continue
+            cols = tuple(r[2] for r in info)
+            idx_cols[name] = cols
+
+        # If canonical index is missing or has different columns, create it
+        present_cols = idx_cols.get(canonical_name)
+        if present_cols != canonical_cols:
+            try:
+                # create canonical index if not present (idempotent)
+                connection.execute(
+                    f"CREATE INDEX IF NOT EXISTS {canonical_name} ON {tbl}({', '.join(canonical_cols)})"
+                )
+                # refresh idx_cols
+                idx_list = list(connection.execute(f"PRAGMA index_list('{tbl}')"))
+                idx_cols = {}
+                for row in idx_list:
+                    name = row[1]
+                    try:
+                        info = list(connection.execute(f"PRAGMA index_info('{name}')"))
+                    except Exception:
+                        continue
+                    cols = tuple(r[2] for r in info)
+                    idx_cols[name] = cols
+            except Exception:
+                pass
+
+        # Now drop any explicit idx_* that duplicate the canonical columns but are not the canonical name
+        for name, cols in list(idx_cols.items()):
+            if name == canonical_name:
+                continue
+            if name.startswith("idx_") and cols == tuple(canonical_cols):
+                try:
+                    connection.execute(f'DROP INDEX IF EXISTS "{name}"')
+                except Exception:
+                    pass
+
+
+# New migration 006: drop explicit indexes redundant with sqlite_autoindex
+MIGRATIONS.append(("006_drop_explicit_indexes_redundant_with_autoindex", _drop_explicit_redundant_indexes))
+
+
 class TrackerDatabase:
     """
     SQLite database layer for multi-user tracker.

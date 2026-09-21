@@ -1,6 +1,8 @@
 import csv
 import os
 import tempfile
+import asyncio
+import functools
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -10,21 +12,15 @@ from services.tracker_service import get_tracker_from_context as get_tracker
 from handlers.utils import get_user_id
 
 
-async def export_records(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
+def _build_export_file(tracker, user_id):
+    """Blocking helper run in thread: fetch records and write CSV file.
 
-    user_id = get_user_id(update)
-
-    records = get_tracker(context).get_records(user_id)
+    Returns path to temporary file, or None if no records.
+    """
+    records = tracker.get_records(user_id)
 
     if not records:
-        await update.message.reply_text(
-            "📤 No records available to export."
-        )
-        return
-
+        return None
 
     with tempfile.NamedTemporaryFile(
         mode="w",
@@ -37,37 +33,36 @@ async def export_records(
 
         writer = csv.writer(file)
 
-        writer.writerow(
-            [
-                "date",
-                "count"
-            ]
-        )
+        writer.writerow(["date", "count"])
 
-        for record_date, count in sorted(
-            records.items()
-        ):
-            writer.writerow(
-                [
-                    record_date,
-                    count
-                ]
-            )
+        for record_date, count in sorted(records.items()):
+            writer.writerow([record_date, count])
 
+    return filename
+
+
+async def export_records(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    user_id = get_user_id(update)
+
+    # Offload fetching records and file creation to a thread
+    filename = await asyncio.to_thread(
+        functools.partial(_build_export_file, get_tracker(context), user_id)
+    )
+
+    if not filename:
+        await update.message.reply_text("📤 No records available to export.")
+        return
 
     try:
-
-        with open(
-            filename,
-            "rb"
-        ) as file:
-
-            await update.message.reply_document(
-                document=file,
-                filename="tracker_history.csv"
-            )
-
+        with open(filename, "rb") as file:
+            await update.message.reply_document(document=file, filename="tracker_history.csv")
     finally:
-
-        if os.path.exists(filename):
-            os.remove(filename)
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception:
+            pass

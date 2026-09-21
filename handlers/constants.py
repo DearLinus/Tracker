@@ -129,3 +129,12 @@ INVALID_FORMAT_MESSAGE = (
 )
 
 COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE = "⚠️ Count must be a whole number."
+
+# Access control
+ACCESS_DENIED_MESSAGE = (
+    "🚫 You are not authorized to use this bot."
+)
+
+PRIVATE_CHAT_REQUIRED_MESSAGE = (
+    "⚠️ This bot only works in private chats."
+)

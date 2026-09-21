@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfoNotFoundError
 from telegram import Update
 from telegram.ext import ContextTypes
 import logging
+import asyncio
+import functools
 
 from keyboards import MAIN_KEYBOARD, BACK_KEYBOARD
 from config import SUCCESS_STICKER_ID, ERROR_STICKER_ID
@@ -53,9 +55,9 @@ async def start_today_record(
     today_date = get_user_today(update, context)
     user_id = get_user_id(update)
 
-    existing = get_tracker(context).get_record(
-        user_id,
-        today_date
+    # Offload DB read to thread
+    existing = await asyncio.to_thread(
+        functools.partial(get_tracker(context).get_record, user_id, today_date)
     )
 
     date_label = today_date.strftime("%B %d, %Y")
@@ -100,17 +102,21 @@ async def save_today_record(
     try:
         # save_record is an upsert: it creates the record
         # or overwrites the existing one for that date.
-        get_tracker(context).save_record(
-            user_id,
-            today_date,
-            count
+        # Offload DB write to thread
+        await asyncio.to_thread(
+            functools.partial(
+                get_tracker(context).save_record,
+                user_id,
+                today_date,
+                count,
+            )
         )
 
         # Clear state BEFORE sending sticker/reply to avoid leaving stale state
         # if Telegram I/O fails. Reset in-memory first, then clear persisted state.
         reset_state(context)
         try:
-            clear_user_state(update, context)
+            await asyncio.to_thread(functools.partial(clear_user_state, update, context))
         except sqlite3.Error as db_err:
             logger.warning("Failed to clear user state from DB (continuing): %s", db_err)
 
@@ -133,7 +139,7 @@ async def save_today_record(
 
         reset_state(context)
         try:
-            clear_user_state(update, context)
+            await asyncio.to_thread(functools.partial(clear_user_state, update, context))
         except sqlite3.Error as db_err:
             logger.warning("Failed to clear user state from DB: %s", db_err)
 
@@ -157,7 +163,7 @@ async def save_today_record(
 
         reset_state(context)
         try:
-            clear_user_state(update, context)
+            await asyncio.to_thread(functools.partial(clear_user_state, update, context))
         except sqlite3.Error as db_err:
             logger.warning("Failed to clear user state from DB: %s", db_err)
 
@@ -246,25 +252,20 @@ async def save_new_record(
 
         # Cache tracker to avoid repeated lookups in this scope
         tracker = get_tracker(context)
-
-        existing = tracker.get_record(
-            user_id,
-            record_date
+        # Offload get_record and save_record to threads
+        existing = await asyncio.to_thread(
+            functools.partial(tracker.get_record, user_id, record_date)
         )
 
-        # save_record is an upsert, so one call covers both cases.
-        # `existing` is only used to pick the wording of the reply.
-        tracker.save_record(
-            user_id,
-            record_date,
-            count
+        await asyncio.to_thread(
+            functools.partial(tracker.save_record, user_id, record_date, count)
         )
 
         # Clear state BEFORE sending sticker/reply to avoid leaving stale state
         # if Telegram I/O fails. Reset in-memory first, then clear persisted state.
         reset_state(context)
         try:
-            clear_user_state(update, context)
+            await asyncio.to_thread(functools.partial(clear_user_state, update, context))
         except sqlite3.Error as db_err:
             logger.warning("Failed to clear user state from DB (continuing): %s", db_err)
 

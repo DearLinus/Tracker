@@ -1,6 +1,9 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
+import asyncio
+import functools
+
 from keyboards import MAIN_KEYBOARD, SETTINGS_KEYBOARD, CONFIRM_DELETE_KEYBOARD
 from services.tracker_service import get_tracker_from_context as get_tracker
 
@@ -28,7 +31,8 @@ async def show_settings(
 ):
 
     reset_state(context)
-    clear_user_state(update, context)
+    # clear persisted state off the event loop
+    await asyncio.to_thread(functools.partial(clear_user_state, update, context))
 
     current_theme = get_graph_theme(update, context)
 
@@ -81,10 +85,13 @@ async def change_graph_theme(
         return
 
     # Persist only after validation
-    get_tracker(context).set_setting(
-        user_id,
-        "graph_theme",
-        theme,
+    await asyncio.to_thread(
+        functools.partial(
+            get_tracker(context).set_setting,
+            user_id,
+            "graph_theme",
+            theme,
+        )
     )
 
     await update.message.reply_text(
@@ -104,7 +111,8 @@ async def request_delete_data(
     user_id = get_user_id(update)
 
     reset_state(context)
-    clear_user_state(update, context)
+    # clear persisted state off the event loop
+    await asyncio.to_thread(functools.partial(clear_user_state, update, context))
 
     set_user_state(update, context, CONFIRM_DELETE)
 
@@ -135,7 +143,7 @@ async def confirm_delete_data(
         # exist; treat that as "no data found" so the handler presents a
         # friendly message instead of bubbling an exception.
         try:
-            deleted = tracker.delete_user(user_id)
+            deleted = await asyncio.to_thread(functools.partial(tracker.delete_user, user_id))
         except ValueError:
             deleted = False
 

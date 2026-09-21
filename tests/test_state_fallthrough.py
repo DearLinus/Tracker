@@ -61,7 +61,9 @@ async def test_unknown_message_clears_state(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     await handle_text(update, context)
 
@@ -93,7 +95,9 @@ async def test_old_button_does_not_fire_after_unknown(monkeypatch):
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTracker()}
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     # user sends unknown message
     await handle_text(update, context)
