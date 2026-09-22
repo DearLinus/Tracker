@@ -1,6 +1,6 @@
-import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
 import bot
 
@@ -60,14 +60,13 @@ def test_main_builds_application(monkeypatch):
     with patch("bot.Application", autospec=True) as MockApp:
         MockApp.builder.return_value = fake_application_builder
         # Patch tracker_service.setup_application and handlers.register_handlers
-        with patch("services.tracker_service.setup_application") as setup_app:
-            with patch("bot.register_handlers") as reg:
-                # Prevent run_polling from blocking
-                fake_app.run_polling = MagicMock()
-                fake_application_builder.build.return_value = fake_app
+        with patch("services.tracker_service.setup_application") as setup_app, patch("bot.register_handlers") as reg:
+            # Prevent run_polling from blocking
+            fake_app.run_polling = MagicMock()
+            fake_application_builder.build.return_value = fake_app
 
-                bot.main()
+            bot.main()
 
-                setup_app.assert_called()
-                reg.assert_called_once()
-                fake_app.run_polling.assert_called()
+            setup_app.assert_called()
+            reg.assert_called_once()
+            fake_app.run_polling.assert_called()

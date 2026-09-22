@@ -2,10 +2,7 @@ import asyncio
 from datetime import date, timedelta
 from io import BytesIO
 
-import pytest
-
 import graph
-
 
 TODAY = date(2026, 9, 19)
 

@@ -1,8 +1,8 @@
 import os
 import sqlite3
 import tempfile
-from datetime import datetime
 from pathlib import Path
+
 import pytest
 
 from backup import backup_database, restore_database
@@ -36,7 +36,7 @@ def test_backup_creates_file_and_respects_retention(tmp_path, monkeypatch):
     assert os.path.exists(b1)
 
     # create another backup; with retention=1 the older backup should be pruned
-    b2 = backup_database(path, str(outdir))
+    backup_database(path, str(outdir))
     files = list(Path(outdir).iterdir())
     assert len(files) == 1
 

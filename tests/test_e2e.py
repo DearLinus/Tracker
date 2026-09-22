@@ -1,16 +1,14 @@
-import os
-import pytest
+from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime
+from unittest.mock import MagicMock
 
-from telegram import Update
-from telegram.ext import Application, ContextTypes
+import pytest
 from telegram.error import TelegramError
+from telegram.ext import Application
 
-from services.tracker_service import setup_application, get_tracker_from_context
 from handlers.records import save_today_record, start_today_record
 from handlers.start import start
+from services.tracker_service import get_tracker_from_context, setup_application
 
 
 class FakeUser:
@@ -58,7 +56,7 @@ def test_application_botdata_context_tracker_persistence(tmp_path):
 
     # Simulate application restart by creating a new Application and setup
     app2 = Application.builder().token("TEST").build()
-    tracker2 = setup_application(app2, db_path=db_path)
+    setup_application(app2, db_path=db_path)
 
     context2 = SimpleNamespace(bot_data=app2.bot_data, application=app2)
     svc2 = get_tracker_from_context(context2)
@@ -159,7 +157,7 @@ async def test_e2e_record_save_with_state_persistence(tmp_path):
     
     # Verify record was saved
     records = tracker2.get_records(777)
-    today = datetime.now().date()
+    today = datetime.now(timezone.utc).date()
     assert today in records
     assert records[today] == 5
     
@@ -195,7 +193,6 @@ async def test_e2e_sticker_failure_doesnt_break_flow(tmp_path, monkeypatch):
     context.bot_data = app.bot_data
     
     # Mock sticker send to fail with TelegramError
-    original_send_sticker = update.message.reply_sticker
     async def failing_sticker(*args, **kwargs):
         raise TelegramError("Sticker send failed")
     update.message.reply_sticker = failing_sticker
@@ -206,7 +203,7 @@ async def test_e2e_sticker_failure_doesnt_break_flow(tmp_path, monkeypatch):
     # Verify record WAS saved despite sticker failure
     tracker = app.bot_data["tracker"]
     records = tracker.get_records(555)
-    today = datetime.now().date()
+    today = datetime.now(timezone.utc).date()
     assert today in records, "Record should be saved despite sticker failure"
     assert records[today] == 3
     

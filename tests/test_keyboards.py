@@ -13,17 +13,15 @@ label in handlers/constants.py will not break them.
 import pytest
 from telegram import ReplyKeyboardMarkup
 
-import keyboards
-from keyboards import (
-    MAIN_KEYBOARD,
-    HISTORY_KEYBOARD,
-    GRAPH_KEYBOARD,
-    SETTINGS_KEYBOARD,
-    BACK_KEYBOARD,
-)
-from handlers import constants as c
 from graph import TIMELINE_DAYS
-
+from handlers import constants as c
+from keyboards import (
+    BACK_KEYBOARD,
+    GRAPH_KEYBOARD,
+    HISTORY_KEYBOARD,
+    MAIN_KEYBOARD,
+    SETTINGS_KEYBOARD,
+)
 
 # ------------------------------------------------------------------
 # Helpers

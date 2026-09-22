@@ -1,6 +1,8 @@
-import pytest
-from logic import TrackerLogic
 from zoneinfo import ZoneInfoNotFoundError
+
+import pytest
+
+from logic import TrackerLogic
 
 
 def test_validate_timezone_name_raises_on_unknown():

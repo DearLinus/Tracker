@@ -13,16 +13,16 @@ are the final ones.
 Run:  pytest -v
 """
 
+import math
 from datetime import date, timedelta
 from io import BytesIO
 
+import matplotlib.dates as mdates
 import pytest
 from matplotlib.figure import Figure
-import matplotlib.dates as mdates
 
 import graph  # <-- change this if your module has a different name/path
-from graph import create_graph, TIMELINE_DAYS
-
+from graph import TIMELINE_DAYS, create_graph
 
 TODAY = date(2026, 9, 19)
 
@@ -102,7 +102,7 @@ def last_plotted_point(ax):
     xs = list(line.get_xdata())
     ys = list(line.get_ydata())
 
-    points = [(x, y) for x, y in zip(xs, ys) if y == y]  # drop NaN
+    points = [(x, y) for x, y in zip(xs, ys) if not math.isnan(y)]
     return points[-1]
 
 

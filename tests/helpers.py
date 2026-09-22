@@ -1,5 +1,9 @@
+import logging
 from unittest.mock import create_autospec
+
 from logic import TrackerLogic
+
+logger = logging.getLogger(__name__)
 
 
 def autospec_tracker(obj):
@@ -15,7 +19,7 @@ def autospec_tracker(obj):
         if hasattr(spec, name):
             try:
                 setattr(spec, name, getattr(obj, name))
-            except Exception:
-                pass
+            except AttributeError:
+                logger.debug("Skipping helper autospec attribute %s", name, exc_info=True)
 
     return spec

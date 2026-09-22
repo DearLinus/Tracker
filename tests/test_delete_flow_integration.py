@@ -1,9 +1,10 @@
-import pytest
 from types import SimpleNamespace
-from services.tracker_service import setup_application
+
+import pytest
+
 from handlers import start as start_handler
-from handlers.settings import request_delete_data, confirm_delete_data
-import sqlite3
+from handlers.settings import confirm_delete_data, request_delete_data
+from services.tracker_service import setup_application
 
 
 class FakeMessage:

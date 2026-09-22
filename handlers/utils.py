@@ -1,15 +1,13 @@
-from telegram import Update
-from telegram.ext import ContextTypes
-from telegram.error import TelegramError
+import logging
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import logging
+
+from telegram import Update
+from telegram.error import TelegramError
+from telegram.ext import ContextTypes
 
 from services.tracker_service import get_tracker_from_context as get_tracker
-import os
-from typing import Set
-
-
 from timezone import DEFAULT_TIMEZONE
 
 logger = logging.getLogger(__name__)
@@ -119,7 +117,7 @@ def parse_int(text: str) -> int:
     Rejects non-integer formats such as '1_0' or floats '3.5'. Allows leading '+' like '+5'.
     """
     if not isinstance(text, str):
-        raise ValueError("invalid literal for int()")
+        raise TypeError("invalid literal for int()")
 
     s = text.strip()
 
@@ -161,17 +159,14 @@ def parse_int(text: str) -> int:
         raise ValueError("invalid literal for int()")
 
     # Now rely on int() which will raise ValueError for bad formats
-    try:
-        return int(normalized)
-    except ValueError:
-        raise
+    return int(normalized)
 
 
 _CACHED_ALLOWED_IDS: set | None = None
 _CACHED_ALLOWED_RAW: str | None = None
 
 
-def _parse_allowed_user_ids() -> Set[int]:
+def _parse_allowed_user_ids() -> set[int]:
     """Parse ALLOWED_USER_IDS env var into a set of ints.
 
     Format: comma-separated integers, e.g. "123,456".
@@ -191,7 +186,7 @@ def _parse_allowed_user_ids() -> Set[int]:
         return set()
 
     parts = [p.strip() for p in raw.split(",") if p.strip()]
-    ids: Set[int] = set()
+    ids: set[int] = set()
     for p in parts:
         try:
             ids.add(int(p))
@@ -221,7 +216,7 @@ def is_private_chat(update) -> bool:
     """
     try:
         chat_type = update.message.chat.type
-    except Exception:
+    except (AttributeError, TypeError):
         # Keep backwards compatibility with tests that don't model chat.type:
         # if chat.type is missing, assume private.
         return True

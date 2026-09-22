@@ -1,8 +1,10 @@
+from datetime import date, timedelta
+
 import pytest
 
 from logic import TrackerLogic
-from datetime import date, timedelta
 from timezone import get_today
+
 
 @pytest.fixture
 def tracker(tmp_path):
@@ -136,7 +138,7 @@ def test_delete_record(tracker):
 
     tracker.create_user(1)
 
-    d = date.today()
+    d = get_today()
 
 
     tracker.save_record(
@@ -162,7 +164,7 @@ def test_save_record_for_unknown_user(tracker):
     with pytest.raises(ValueError):
         tracker.save_record(
             999,
-            date.today(),
+            get_today(),
             5
         )
 
@@ -192,7 +194,7 @@ def test_negative_count(tracker):
 
         tracker.save_record(
             1,
-            date.today(),
+            get_today(),
             -1
         )
 
@@ -204,7 +206,7 @@ def test_count_over_maximum_is_rejected(tracker):
     with pytest.raises(ValueError, match="1000"):
         tracker.save_record(
             1,
-            date.today(),
+            get_today(),
             1001,
         )
 
@@ -217,7 +219,7 @@ def test_boolean_count(tracker):
 
         tracker.save_record(
             1,
-            date.today(),
+            get_today(),
             True
         )
 
@@ -231,7 +233,7 @@ def test_string_count(tracker):
 
         tracker.save_record(
             1,
-            date.today(),
+            get_today(),
             "5"
         )
 
@@ -365,7 +367,7 @@ def test_records_are_isolated(tracker):
     tracker.create_user(2)
 
 
-    d=date.today()
+    d = get_today()
 
 
     tracker.save_record(

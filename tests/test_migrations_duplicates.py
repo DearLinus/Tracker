@@ -1,6 +1,7 @@
 import sqlite3
 import tempfile
-from database import TrackerDatabase, MIGRATIONS
+
+from database import TrackerDatabase
 
 
 def test_migrations_idempotent_and_clean_indexes():

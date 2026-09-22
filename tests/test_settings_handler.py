@@ -1,10 +1,11 @@
 import pytest
 
 from handlers.settings import (
-    show_settings,
     change_graph_theme,
+    confirm_delete_data,
+    request_delete_data,
+    show_settings,
 )
-from handlers.settings import request_delete_data, confirm_delete_data
 
 
 class FakeUser:

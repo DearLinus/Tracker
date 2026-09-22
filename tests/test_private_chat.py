@@ -1,7 +1,7 @@
 import pytest
 
-from handlers.utils import is_private_chat
 from handlers.start import start
+from handlers.utils import is_private_chat
 
 
 class FakeChat:

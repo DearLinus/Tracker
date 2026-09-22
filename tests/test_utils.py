@@ -15,9 +15,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pytest
 
-import handlers.utils as utils  # <-- change if your module name differs
-from handlers import constants
-
+from handlers import (
+    constants,
+    utils,  # <-- change if your module name differs
+)
 
 # ------------------------------------------------------------------
 # Helpers / fixtures

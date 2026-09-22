@@ -1,6 +1,8 @@
 import os
 import sqlite3
+
 import pytest
+
 from backup import backup_database, restore_database
 
 
@@ -22,11 +24,8 @@ def test_backup_missing_source_raises(tmp_path):
     db = tmp_path / "does_not_exist.db"
     backup_dir = tmp_path / "backups"
 
-    try:
+    with pytest.raises(FileNotFoundError):
         backup_database(str(db), str(backup_dir))
-        assert False, "Expected FileNotFoundError"
-    except FileNotFoundError:
-        pass
 
 
 def test_backup_retention(tmp_path, monkeypatch):
@@ -49,7 +48,7 @@ def test_backup_retention(tmp_path, monkeypatch):
     # set retention to 2
     monkeypatch.setenv("BACKUP_RETENTION", "2")
 
-    path = backup_database(str(db), str(backup_dir))
+    backup_database(str(db), str(backup_dir))
     # after backup, only the 2 newest timestamped backups should remain
     import re
     pattern = re.compile(rf"^{stem}_\d{{8}}_\d{{6}}.*\.db$")

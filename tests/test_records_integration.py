@@ -8,10 +8,9 @@ actually accepts. These tests use a real temporary database instead.
 
 import pytest
 
+from handlers.records import save_new_record, save_today_record
 from logic import TrackerLogic
 from timezone import get_today
-
-from handlers.records import save_today_record, save_new_record
 
 
 class FakeUser:

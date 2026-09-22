@@ -1,34 +1,31 @@
-from telegram import Update, InputFile
-from telegram.ext import ContextTypes
-
-from handlers.utils import (
-    get_user_id,
-    reset_state,
-    get_graph_theme,
-    get_user_today,
-    set_user_state,
-    clear_user_state,
-    enforce_rate_limit,
-)
 import asyncio
 import functools
-from zoneinfo import ZoneInfoNotFoundError
-import sqlite3
 import logging
+import sqlite3
+from zoneinfo import ZoneInfoNotFoundError
 
-from keyboards import (
-    MAIN_KEYBOARD,
-    GRAPH_KEYBOARD,
-)
-
-from services.tracker_service import get_tracker_from_context as get_tracker
+from telegram import InputFile, Update
+from telegram.ext import ContextTypes
 
 from graph import create_graph
-
 from handlers.constants import (
     GRAPH_TIMELINE,
     GRAPH_TIMELINES,
 )
+from handlers.utils import (
+    clear_user_state,
+    enforce_rate_limit,
+    get_graph_theme,
+    get_user_id,
+    get_user_today,
+    reset_state,
+    set_user_state,
+)
+from keyboards import (
+    GRAPH_KEYBOARD,
+    MAIN_KEYBOARD,
+)
+from services.tracker_service import get_tracker_from_context as get_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +133,8 @@ async def send_graph(
 
     # Expected exceptions: timezone resolution, DB access, graph generation, or missing tracker.
     # Handle these to provide a friendly reply; unexpected exceptions should propagate for debugging.
-    except (ZoneInfoNotFoundError, sqlite3.Error, ValueError, OSError, RuntimeError) as exc:
-        logger.exception("Failed to generate graph: %s", exc)
+    except (ZoneInfoNotFoundError, sqlite3.Error, ValueError, OSError, RuntimeError):
+        logger.exception("Failed to generate graph")
 
         reset_state(context)
         clear_user_state(update, context)

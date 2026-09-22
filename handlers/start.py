@@ -1,20 +1,19 @@
+import asyncio
+import functools
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from keyboards import MAIN_KEYBOARD
 from config import WELCOME_STICKER_ID
 from handlers.constants import WELCOME_MESSAGE
-
-from services.tracker_service import get_tracker_from_context as get_tracker
-
 from handlers.utils import (
+    clear_user_state,
+    is_user_allowed,
     reset_state,
     send_sticker_if_available,
-    clear_user_state,
 )
-from handlers.utils import is_user_allowed
-import asyncio
-import functools
+from keyboards import MAIN_KEYBOARD
+from services.tracker_service import get_tracker_from_context as get_tracker
 
 
 async def start(

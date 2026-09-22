@@ -602,24 +602,26 @@ class TrackerDatabase:
     # =========================================================
 
     def check_and_record_rate_limit(self, user_id, operation, limit, window_seconds, now=None):
-        """Allow up to `limit` requests in each rolling window for a user/operation.
+        """Allow up to `limit` requests in each fixed time window for a user/operation.
 
-        SQLite is used as the source of truth. This keeps the implementation simple,
-        predictable, and production-safe without introducing Redis or another external
-        dependency.
+        Bucket membership is keyed by the number of full window intervals elapsed since the
+        Unix epoch. This ensures all requests within the same fixed window share the same
+        bucket regardless of when inside the window they occur, while older buckets are
+        naturally discarded as new window boundaries are crossed.
         """
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timezone
 
         if now is None:
             now = datetime.now(timezone.utc)
 
-        window_start = (now - timedelta(seconds=window_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        bucket_start = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        epoch_seconds = int(now.timestamp())
+        bucket_epoch = (epoch_seconds // window_seconds) * window_seconds
+        bucket_start = datetime.fromtimestamp(bucket_epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
         with self.connection() as connection:
             connection.execute(
                 "DELETE FROM rate_limits WHERE user_id = ? AND operation = ? AND window_start < ?",
-                (user_id, operation, window_start),
+                (user_id, operation, bucket_start),
             )
 
             row = connection.execute(

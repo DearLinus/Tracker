@@ -22,8 +22,7 @@ from telegram import InputFile
 
 import handlers.graph as gh  # <-- change if your module name differs
 from handlers.constants import GRAPH_TIMELINE, GRAPH_TIMELINES
-from keyboards import MAIN_KEYBOARD, GRAPH_KEYBOARD
-
+from keyboards import GRAPH_KEYBOARD, MAIN_KEYBOARD
 
 pytestmark = pytest.mark.asyncio
 

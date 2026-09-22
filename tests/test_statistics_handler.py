@@ -2,7 +2,6 @@ import pytest
 
 from logic import TrackerLogic
 
-
 # The original handler tests depended on Telegram Update/Context and
 # monkeypatching tracker.get_records. These tests exercise the
 # statistics calculation logic directly by calling TrackerLogic.get_statistics.

@@ -1,6 +1,7 @@
+import os
 import sqlite3
 import tempfile
-import os
+
 from database import TrackerDatabase
 
 
@@ -9,7 +10,7 @@ def test_migration_006_drops_explicit_idx(tmp_path):
     os.close(fd)
 
     # Initialize DB which will run migrations including 006
-    db = TrackerDatabase(path)
+    TrackerDatabase(path)
 
     con = sqlite3.connect(path)
     con.row_factory = sqlite3.Row

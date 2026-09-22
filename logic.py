@@ -1,13 +1,9 @@
-import os
-import config
 from datetime import date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import config
 from database import TrackerDatabase
-from timezone import (
-    get_today,
-    DEFAULT_TIMEZONE
-)
+from timezone import DEFAULT_TIMEZONE, get_today
 
 USER_ID_REQUIRED_MESSAGE = "user_id cannot be None."
 USER_ID_BOOL_MESSAGE = "user_id cannot be boolean."

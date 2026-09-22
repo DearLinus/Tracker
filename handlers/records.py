@@ -1,18 +1,14 @@
-from datetime import datetime
+import asyncio
+import functools
+import logging
 import sqlite3
+from datetime import date
 from zoneinfo import ZoneInfoNotFoundError
-
 
 from telegram import Update
 from telegram.ext import ContextTypes
-import logging
-import asyncio
-import functools
 
-from keyboards import MAIN_KEYBOARD, BACK_KEYBOARD
-from config import SUCCESS_STICKER_ID, ERROR_STICKER_ID
-from services.tracker_service import get_tracker_from_context as get_tracker
-
+from config import ERROR_STICKER_ID, SUCCESS_STICKER_ID
 from handlers.constants import (
     COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE,
     GENERIC_RECORD_ERROR_MESSAGE,
@@ -20,21 +16,23 @@ from handlers.constants import (
     INVALID_FORMAT_MESSAGE,
     INVALID_NUMBER_MESSAGE,
     NEGATIVE_COUNT_MESSAGE,
+    NEW_RECORD,
     RECORD_SAVED_TEMPLATE,
+    TODAY_COUNT,
     TODAY_RECORD_PROMPT,
     TODAY_RECORD_UPDATE_PROMPT,
-    TODAY_COUNT,
-    NEW_RECORD,
 )
 from handlers.utils import (
+    clear_user_state,
     get_user_id,
+    get_user_today,
+    parse_int,
     reset_state,
     send_sticker_if_available,
-    get_user_today,
     set_user_state,
-    clear_user_state,
 )
-from handlers.utils import parse_int
+from keyboards import BACK_KEYBOARD, MAIN_KEYBOARD
+from services.tracker_service import get_tracker_from_context as get_tracker
 
 logger = logging.getLogger(__name__)
 # =========================================================
@@ -155,11 +153,11 @@ async def save_today_record(
 
     # Expected exceptions: validation/type errors from TrackerLogic, DB errors, or missing tracker.
     # We handle these to give a user-facing message; unexpected exceptions should bubble up.
-    except (TypeError, sqlite3.Error, RuntimeError) as exc:
+    except (TypeError, sqlite3.Error, RuntimeError):
         # TypeError: validation type issues from TrackerLogic
         # sqlite3.Error: DB errors bubbled from TrackerDatabase
         # RuntimeError: missing tracker or app initialization
-        logger.exception("Failed to save today's record: %s", exc)
+        logger.exception("Failed to save today's record")
 
         reset_state(context)
         try:
@@ -218,10 +216,7 @@ async def save_new_record(
     count_text = parts[1]
 
     try:
-        record_date = datetime.strptime(
-            date_text,
-            "%Y-%m-%d"
-        ).date()
+        record_date = date.fromisoformat(date_text)
 
     except ValueError:
         await update.message.reply_text(
@@ -293,12 +288,12 @@ async def save_new_record(
 
     # Expected exceptions: validation/type errors, DB errors, missing tracker, or timezone resolution failures.
     # These are handled to present a friendly error to users; programmer errors should not be swallowed.
-    except (TypeError, sqlite3.Error, RuntimeError, ZoneInfoNotFoundError) as exc:
+    except (TypeError, sqlite3.Error, RuntimeError, ZoneInfoNotFoundError):
         # TypeError: validation type issues from TrackerLogic
         # sqlite3.Error: DB errors bubbled from TrackerDatabase
         # RuntimeError: missing tracker or app initialization
         # ZoneInfoNotFoundError: invalid timezone names during date validation
-        logger.exception("Failed to save new record: %s", exc)
+        logger.exception("Failed to save new record")
 
         reset_state(context)
         try:

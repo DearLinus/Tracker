@@ -1,23 +1,16 @@
-venvenus/
-.pytest_cache/
-.coverage
-htmlcov/
-*.pyc
-__pycache__/
-*.db
-test_tracker.db
-env/
-venv/
-/.venv# Python
+# Python
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 .venv/
 venv/
 venvenus/
-venvunus/
 env/
 
 # Secrets and environment
@@ -28,7 +21,9 @@ env/
 *.db
 *.db-wal
 *.db-shm
+*.sqlite3
 tracker.db
+test_tracker.db
 tracker_settings.json
 backups/
 logs/

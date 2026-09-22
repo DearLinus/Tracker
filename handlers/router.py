@@ -1,52 +1,52 @@
-from telegram import Update
-from telegram.ext import ContextTypes
-
-from handlers.graph import show_graph_menu, send_graph
-from handlers.records import (
-    start_today_record,
-    save_today_record,
-    start_new_record,
-    save_new_record,
-)
-from handlers.settings import show_settings, change_graph_theme
-from handlers.settings import request_delete_data, confirm_delete_data
-from handlers.statistics import show_statistics
-from handlers.history import show_history
-from handlers.navigation import go_back
-from handlers.export import export_records
-
-from keyboards import MAIN_KEYBOARD
-
-from services.tracker_service import get_tracker_from_context as get_tracker
-
-from handlers.utils import get_user_id, get_user_state, reset_state, clear_user_state
 import asyncio
 import functools
 
-from handlers.constants import (
-    GRAPH_TIMELINE,
-    SETTINGS,
-    TODAY_COUNT,
-    NEW_RECORD,
-    GRAPH_TIMELINES,
+from telegram import Update
+from telegram.ext import ContextTypes
 
-    GRAPH_BUTTON,
-    TODAY_RECORD_BUTTON,
-    STATISTICS_BUTTON,
-    SETTINGS_BUTTON,
+from handlers.constants import (
     BACK_BUTTON,
-    EXPORT_BUTTON,
-    NEW_RECORD_BUTTON,
-    HISTORY_BUTTON,
-    DARK_THEME_BUTTON,
-    LIGHT_THEME_BUTTON,
-    DARK_THEME,
-    LIGHT_THEME,
-    DELETE_DATA_BUTTON,
     CONFIRM_DELETE,
-    CONFIRM_YES_BUTTON,
     CONFIRM_NO_BUTTON,
+    CONFIRM_YES_BUTTON,
+    DARK_THEME,
+    DARK_THEME_BUTTON,
+    DELETE_DATA_BUTTON,
+    EXPORT_BUTTON,
+    GRAPH_BUTTON,
+    GRAPH_TIMELINE,
+    GRAPH_TIMELINES,
+    HISTORY_BUTTON,
+    LIGHT_THEME,
+    LIGHT_THEME_BUTTON,
+    NEW_RECORD,
+    NEW_RECORD_BUTTON,
+    SETTINGS,
+    SETTINGS_BUTTON,
+    STATISTICS_BUTTON,
+    TODAY_COUNT,
+    TODAY_RECORD_BUTTON,
 )
+from handlers.export import export_records
+from handlers.graph import send_graph, show_graph_menu
+from handlers.history import show_history
+from handlers.navigation import go_back
+from handlers.records import (
+    save_new_record,
+    save_today_record,
+    start_new_record,
+    start_today_record,
+)
+from handlers.settings import (
+    change_graph_theme,
+    confirm_delete_data,
+    request_delete_data,
+    show_settings,
+)
+from handlers.statistics import show_statistics
+from handlers.utils import clear_user_state, get_user_id, get_user_state, reset_state
+from keyboards import MAIN_KEYBOARD
+from services.tracker_service import get_tracker_from_context as get_tracker
 
 
 async def handle_text(
@@ -66,8 +66,8 @@ async def handle_text(
         )
         return
     # Access control: block early if configured
-    from handlers.utils import is_user_allowed
     from handlers.constants import ACCESS_DENIED_MESSAGE
+    from handlers.utils import is_user_allowed
     if not is_user_allowed(user_id):
         await update.message.reply_text(
             ACCESS_DENIED_MESSAGE,
@@ -75,8 +75,8 @@ async def handle_text(
         )
         return
     # Private chat enforcement
-    from handlers.utils import is_private_chat
     from handlers.constants import PRIVATE_CHAT_REQUIRED_MESSAGE
+    from handlers.utils import is_private_chat
     if not is_private_chat(update):
         await update.message.reply_text(
             PRIVATE_CHAT_REQUIRED_MESSAGE,
@@ -195,7 +195,7 @@ async def handle_text(
     reset_state(context)
     try:
         await asyncio.to_thread(functools.partial(clear_user_state, update, context))
-    except Exception:
+    except (AttributeError, RuntimeError, TypeError):
         # Be conservative: do not fail on clear_user_state issues
         pass
 

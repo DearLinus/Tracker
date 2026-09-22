@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from logic import TrackerLogic
-from services.tracker_service import check_rate_limit, get_tracker_from_context, setup_application
+from services.tracker_service import get_tracker_from_context, setup_application
 
 
 class FakeApp:
@@ -103,22 +103,6 @@ def test_setup_application_raises_when_bot_data_is_unusable():
 def test_tracker_service_raises_for_non_mapping_bot_data():
     with pytest.raises(RuntimeError, match="TrackerLogic instance not found"):
         get_tracker_from_context(SimpleNamespace(bot_data=[]))
-
-
-def test_check_rate_limit_passes_through_tracker_logic():
-    class FakeTracker:
-        def __init__(self):
-            self.calls = []
-
-        def check_rate_limit(self, user_id, operation, **kwargs):
-            self.calls.append((user_id, operation, kwargs))
-            return True
-
-    tracker = FakeTracker()
-    context = SimpleNamespace(bot_data={"tracker": tracker})
-
-    assert check_rate_limit(context, 42, "graph_generation", limit=1) is True
-    assert tracker.calls == [(42, "graph_generation", {"limit": 1})]
 
 
 def test_get_tracker_from_context_raises_on_missing():

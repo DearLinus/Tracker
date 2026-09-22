@@ -1,7 +1,9 @@
+import logging
 import os
 
 import pytest
 
+logger = logging.getLogger(__name__)
 
 # Provide a sensible default so importing modules that read config at
 # import-time don't fail in a clean CI environment.
@@ -147,6 +149,7 @@ def tracker_factory():
         if autospec:
             # Create an autospeced object matching TrackerLogic to catch API drift
             from unittest.mock import create_autospec
+
             from logic import TrackerLogic
 
             spec = create_autospec(TrackerLogic, instance=True)
@@ -155,8 +158,8 @@ def tracker_factory():
                 if not name.startswith("_") and hasattr(spec, name):
                     try:
                         setattr(spec, name, getattr(instance, name))
-                    except Exception:
-                        pass
+                    except AttributeError:
+                        logger.debug("Skipping autospec attribute %s", name, exc_info=True)
 
             return spec
 

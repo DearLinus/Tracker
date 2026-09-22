@@ -1,13 +1,14 @@
-from io import BytesIO
+import math
 from datetime import timedelta
+from io import BytesIO
 
 import matplotlib
+
 matplotlib.use("Agg")
 
-from matplotlib.figure import Figure
 import matplotlib.dates as mdates
+from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
-
 
 TIMELINE_DAYS = {
     "Weekly": 7,
@@ -105,7 +106,7 @@ def create_graph(
     x_max = latest_x + pad_right
 
     # Y
-    valid_counts = [c for c in counts if c == c]  # drops NaN
+    valid_counts = [c for c in counts if not math.isnan(c)]
 
     max_count = max(valid_counts)
     min_count = min(valid_counts)

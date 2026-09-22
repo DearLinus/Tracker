@@ -47,6 +47,18 @@ def test_rate_limit_window_expires_after_window_passes(tmp_path):
     assert tracker.database.check_and_record_rate_limit(404, "export_generation", 2, 60, now=later) is True
 
 
+def test_rate_limit_uses_fixed_window_bucket_for_same_window_requests(tmp_path):
+    db_path = str(tmp_path / "fixed_window_bucket.db")
+    tracker = TrackerLogic(db_path=db_path)
+    tracker.create_user(444)
+
+    base = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    assert tracker.database.check_and_record_rate_limit(444, "graph_generation", 2, 60, now=base + timedelta(seconds=5)) is True
+    assert tracker.database.check_and_record_rate_limit(444, "graph_generation", 2, 60, now=base + timedelta(seconds=30)) is True
+    assert tracker.database.check_and_record_rate_limit(444, "graph_generation", 2, 60, now=base + timedelta(seconds=59)) is False
+
+
 def test_rate_limit_tracks_graph_and_export_separately(tmp_path):
     db_path = str(tmp_path / "rate_limit_separate.db")
     tracker = TrackerLogic(db_path=db_path)

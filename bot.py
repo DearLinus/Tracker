@@ -1,19 +1,22 @@
 import logging
 import os
 from pathlib import Path
+from typing import ClassVar
 
-from handlers import register_handlers
-from handlers.router import handle_text
-from config import TELEGRAM_BOT_TOKEN
 from telegram.ext import (
     Application,
     MessageHandler,
     filters,
 )
 
+from config import TELEGRAM_BOT_TOKEN
+from handlers import register_handlers
+from handlers.router import handle_text
+
+
 class ColoredFormatter(logging.Formatter):
 
-    COLORS = {
+    COLORS: ClassVar[dict[int, str]] = {
         logging.DEBUG: "\033[90m",
         logging.INFO: "\033[36m",
         logging.WARNING: "\033[33m",
@@ -21,7 +24,7 @@ class ColoredFormatter(logging.Formatter):
         logging.CRITICAL: "\033[1;31m",
     }
 
-    RESET = "\033[0m"
+    RESET: ClassVar[str] = "\033[0m"
 
     def format(self, record):
         color = self.COLORS.get(record.levelno, "")

@@ -1,8 +1,11 @@
 import argparse
+import logging
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def backup_database(db_path: str, backup_dir: str) -> str:
@@ -17,7 +20,7 @@ def backup_database(db_path: str, backup_dir: str) -> str:
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Source database not found: {db_path}")
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     backup_name = f"{Path(db_path).stem}_{timestamp}.db"
     backup_path = os.path.join(backup_dir, backup_name)
 
@@ -48,9 +51,8 @@ def backup_database(db_path: str, backup_dir: str) -> str:
     for old in timestamped_backups[retention:]:
         try:
             old.unlink()
-        except Exception:
-            # Do not fail the backup if cleanup cannot remove an old file
-            pass
+        except OSError:
+            logger.warning("Failed to remove old backup %s", old)
 
     return backup_path
 
@@ -79,7 +81,7 @@ def restore_database(db_path: str, backup_path: str) -> None:
     # If the target DB exists, create a safety copy before overwriting it.
     if os.path.exists(db_path):
         from shutil import copy2
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safety_path = f"{db_path}.pre_restore_{timestamp}.db"
         copy2(db_path, safety_path)
 
