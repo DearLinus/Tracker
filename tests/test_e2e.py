@@ -6,9 +6,19 @@ import pytest
 from telegram.error import TelegramError
 from telegram.ext import Application
 
+from handlers import utils
 from handlers.records import save_today_record, start_today_record
 from handlers.start import start
 from services.tracker_service import get_tracker_from_context, setup_application
+
+
+def freeze_time(monkeypatch, moment_utc):
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return moment_utc.astimezone(tz) if tz is not None else moment_utc
+
+    monkeypatch.setattr(utils, "datetime", FrozenDatetime)
 
 
 class FakeUser:
@@ -100,7 +110,7 @@ async def test_e2e_start_handler_flow(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_e2e_record_save_with_state_persistence(tmp_path):
+async def test_e2e_record_save_with_state_persistence(tmp_path, monkeypatch):
     """E2E test: Record saving with state persistence across restart.
     
     Flow:
@@ -111,6 +121,7 @@ async def test_e2e_record_save_with_state_persistence(tmp_path):
     5. Record saved, state cleared from DB
     """
     db_path = str(tmp_path / "e2e_record.db")
+    freeze_time(monkeypatch, datetime(2026, 9, 19, 20, 30, tzinfo=timezone.utc))
     
     # === Phase 1: Initial /start ===
     app1 = Application.builder().token("TEST").build()
@@ -155,9 +166,9 @@ async def test_e2e_record_save_with_state_persistence(tmp_path):
     
     await save_today_record(update3, context3)
     
-    # Verify record was saved
+    # Verify record was saved using the same timezone-aware date source as the app
     records = tracker2.get_records(777)
-    today = datetime.now(timezone.utc).date()
+    today = utils.get_user_today(update3, context3)
     assert today in records
     assert records[today] == 5
     
@@ -174,6 +185,7 @@ async def test_e2e_sticker_failure_doesnt_break_flow(tmp_path, monkeypatch):
     record save or state cleanup.
     """
     db_path = str(tmp_path / "e2e_sticker.db")
+    freeze_time(monkeypatch, datetime(2026, 9, 19, 20, 30, tzinfo=timezone.utc))
     
     app = Application.builder().token("TEST").build()
     setup_application(app, db_path=db_path)
@@ -200,10 +212,10 @@ async def test_e2e_sticker_failure_doesnt_break_flow(tmp_path, monkeypatch):
     # Should not raise; handler should complete despite sticker failure
     await save_today_record(update, context)
     
-    # Verify record WAS saved despite sticker failure
+    # Verify record WAS saved despite sticker failure using the app's date logic
     tracker = app.bot_data["tracker"]
     records = tracker.get_records(555)
-    today = datetime.now(timezone.utc).date()
+    today = utils.get_user_today(update, context)
     assert today in records, "Record should be saved despite sticker failure"
     assert records[today] == 3
     
