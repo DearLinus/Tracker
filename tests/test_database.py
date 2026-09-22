@@ -22,6 +22,18 @@ def test_database_tracks_applied_migrations(database):
     assert "002_add_indexes" in migrations
 
 
+def test_migration_list_is_in_numeric_order():
+    import database as db_module
+
+    migration_names = [name for name, _ in db_module.MIGRATIONS]
+    numeric_prefixes = [int(name.split("_", 1)[0]) for name in migration_names]
+
+    assert numeric_prefixes == sorted(numeric_prefixes), (
+        "MIGRATIONS must be ordered numerically by migration prefix: "
+        f"{migration_names}"
+    )
+
+
 def test_apply_migrations_rolls_back_failed_migration(tmp_path, monkeypatch):
     db = TrackerDatabase(str(tmp_path / "rollback.db"))
 
@@ -277,9 +289,9 @@ def test_remove_duplicate_indexes_drops_noncanonical_duplicates(tmp_path):
             "CREATE INDEX idx_settings_user_key ON settings(user_id, setting_key)"
         )
 
-        from database import _remove_duplicate_indexes
+        from database import _consolidate_index_cleanup
 
-        _remove_duplicate_indexes(conn)
+        _consolidate_index_cleanup(conn)
 
         duplicate_records = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='records' AND name LIKE 'idx_%'"

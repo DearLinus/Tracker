@@ -71,53 +71,19 @@ MIGRATIONS = [
 ]
 
 
-def _remove_duplicate_indexes(connection):
-    """
-    Detect indexes that duplicate the canonical `idx_records_user_date`
-    and `idx_settings_user_key` semantics but have different names,
-    and drop them. This is implemented in Python because SQLite SQL
-    itself does not provide a simple way to iterate and DROP indexes
-    by their column list in a single static script.
-    """
-    canonical = {
-        "records": ("idx_records_user_date", ("user_id", "record_date")),
-        "settings": ("idx_settings_user_key", ("user_id", "setting_key")),
-    }
-
-    for tbl, (canonical_name, cols) in canonical.items():
-        cursor = connection.execute(
-            "SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name = ?",
-            (tbl,),
-        )
-
-        for row in cursor.fetchall():
-            name = row[0]
-            sql = row[1]
-            if sql is None:
-                # implicit indexes (e.g. for PKs) may have NULL sql; ignore
-                continue
-
-            low = sql.lower()
-            if all(c.lower() in low for c in cols) and name != canonical_name:
-                try:
-                    connection.execute(f'DROP INDEX IF EXISTS "{name}"')
-                except sqlite3.Error:
-                    # best-effort: don't stop the whole migration on a single drop failure
-                    pass
-
-
-# Append a Python-backed migration that will run once and clean up any
-# duplicate indexes discovered at runtime. This keeps previous migrations
-# unchanged while providing an idempotent cleanup step.
-MIGRATIONS.append(("005_remove_duplicate_indexes", _remove_duplicate_indexes))
-
-
-def _drop_explicit_redundant_indexes(connection):
-    """
-    Drop explicit, named indexes (like `idx_records_user_date`) when SQLite
-    already created an implicit index (sqlite_autoindex_*) covering the same
-    columns (typically for PRIMARY KEY or UNIQUE constraints). This avoids
-    redundant indexes that waste space and slow writes.
+def _consolidate_index_cleanup(connection):
+    """Consolidate index cleanup: remove duplicates, drop redundant explicit indexes.
+    
+    This handles three concerns:
+    1. Detect and drop indexes that duplicate canonical `idx_records_user_date` and
+       `idx_settings_user_key` semantics but have different names.
+    2. Drop explicit named indexes when SQLite autoindex (from UNIQUE constraints)
+       covers the same columns to avoid redundant indexes.
+    3. Ensure the canonical index names are always present unless an autoindex
+       already covers them.
+    
+    Implemented as idempotent Python logic because SQLite SQL cannot easily
+    iterate indexes by column list in a single static script.
     """
     canonical = {
         "records": ("idx_records_user_date", ("user_id", "record_date")),
@@ -132,6 +98,7 @@ def _drop_explicit_redundant_indexes(connection):
 
         # Build a map: index_name -> tuple(column names)
         idx_cols = {}
+        autoindex_exists = False
         for row in idx_list:
             name = row[1]
             try:
@@ -140,78 +107,56 @@ def _drop_explicit_redundant_indexes(connection):
                 continue
             cols = tuple(r[2] for r in info)
             idx_cols[name] = cols
+            
+            # Check if an autoindex already covers the canonical columns
+            if name.startswith("sqlite_autoindex_") and cols == tuple(canonical_cols):
+                autoindex_exists = True
 
-        # If canonical index is missing or has different columns, create it
-        present_cols = idx_cols.get(canonical_name)
-        if present_cols != canonical_cols:
+        # If autoindex exists covering canonical columns, drop the explicit canonical index
+        # Otherwise, ensure the explicit canonical index exists
+        if autoindex_exists:
             try:
-                # create canonical index if not present (idempotent)
-                connection.execute(
-                    f"CREATE INDEX IF NOT EXISTS {canonical_name} ON {tbl}({', '.join(canonical_cols)})"
-                )
-                # refresh idx_cols
-                idx_list = list(connection.execute(f"PRAGMA index_list('{tbl}')"))
-                idx_cols = {}
-                for row in idx_list:
-                    name = row[1]
-                    try:
-                        info = list(connection.execute(f"PRAGMA index_info('{name}')"))
-                    except sqlite3.Error:
-                        continue
-                    cols = tuple(r[2] for r in info)
-                    idx_cols[name] = cols
+                connection.execute(f'DROP INDEX IF EXISTS "{canonical_name}"')
             except sqlite3.Error:
                 pass
-
-        # Now drop any explicit idx_* that duplicate the canonical columns but are not the canonical name
-        for name, cols in list(idx_cols.items()):
-            if name == canonical_name:
-                continue
-            if name.startswith("idx_") and cols == tuple(canonical_cols):
+        else:
+            # Ensure canonical index exists with correct columns if no autoindex covers it
+            present_cols = idx_cols.get(canonical_name)
+            if present_cols != canonical_cols:
                 try:
-                    connection.execute(f'DROP INDEX IF EXISTS "{name}"')
+                    connection.execute(
+                        f"CREATE INDEX IF NOT EXISTS {canonical_name} ON {tbl}({', '.join(canonical_cols)})"
+                    )
                 except sqlite3.Error:
                     pass
 
-
-# New migration 006: drop explicit indexes redundant with sqlite_autoindex
-MIGRATIONS.append(("006_drop_explicit_indexes_redundant_with_autoindex", _drop_explicit_redundant_indexes))
-
-
-def _drop_redundant_records_user_date_index(connection):
-    """Drop the explicit records index when it duplicates the UNIQUE autoindex.
-
-    SQLite creates a sqlite_autoindex_... entry for UNIQUE(user_id, record_date).
-    The explicit `idx_records_user_date` index duplicates that same covering index,
-    so it is safe to remove while keeping the uniqueness guarantee intact.
-    """
-    try:
-        index_list = list(connection.execute("PRAGMA index_list('records')"))
-    except sqlite3.Error:
-        return
-
-    explicit = None
-    autoindex_cols = None
-    for row in index_list:
-        name = row[1]
-        if name == "idx_records_user_date":
-            try:
-                info = list(connection.execute("PRAGMA index_info('idx_records_user_date')"))
-            except sqlite3.Error:
-                return
-            explicit = tuple(item[2] for item in info)
-        elif name.startswith("sqlite_autoindex_records_"):
+        # Drop any other explicit idx_* indexes that duplicate the canonical columns
+        # (but do this after we've handled the canonical index itself)
+        try:
+            idx_list = list(connection.execute(f"PRAGMA index_list('{tbl}')"))
+        except sqlite3.Error:
+            continue
+            
+        for row in idx_list:
+            name = row[1]
+            if name == canonical_name or not name.startswith("idx_"):
+                continue
             try:
                 info = list(connection.execute(f"PRAGMA index_info('{name}')"))
             except sqlite3.Error:
                 continue
-            autoindex_cols = tuple(item[2] for item in info)
+            cols = tuple(r[2] for r in info)
+            if cols == tuple(canonical_cols):
+                try:
+                    connection.execute(f'DROP INDEX IF EXISTS "{name}"')
+                except sqlite3.Error:
+                    # Best-effort: continue cleanup even if a single drop fails
+                    pass
 
-    if explicit == ("user_id", "record_date") and autoindex_cols == ("user_id", "record_date"):
-        connection.execute('DROP INDEX IF EXISTS "idx_records_user_date"')
 
 
-MIGRATIONS.append(("008_drop_redundant_records_user_date_index", _drop_redundant_records_user_date_index))
+MIGRATIONS.append(("005_consolidate_index_cleanup", _consolidate_index_cleanup))
+
 
 MIGRATIONS.append(
     (
@@ -278,18 +223,17 @@ class TrackerDatabase:
 
     def _ensure_schema_migrations_table(self, connection):
         connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-                migration_name TEXT PRIMARY KEY,
-                applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
+            "CREATE TABLE IF NOT EXISTS schema_migrations ("
+            "    migration_name TEXT PRIMARY KEY,"
+            "    applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            ")"
         )
 
     def get_applied_migrations(self):
         with self.connection() as connection:
             rows = connection.execute(
-                "SELECT migration_name FROM schema_migrations ORDER BY migration_name"
+                "SELECT migration_name FROM schema_migrations"
+                " ORDER BY migration_name"
             ).fetchall()
             return [row["migration_name"] for row in rows]
 
@@ -300,19 +244,18 @@ class TrackerDatabase:
     def set_user_state(self, user_id, state_key, state_value):
         with self.connection() as connection:
             connection.execute(
-                """
-                INSERT INTO user_states (user_id, state_key, state_value)
-                VALUES (?, ?, ?)
-                ON CONFLICT(user_id, state_key) DO UPDATE SET
-                    state_value = excluded.state_value
-                """,
+                "INSERT INTO user_states (user_id, state_key, state_value)"
+                " VALUES (?, ?, ?)"
+                " ON CONFLICT(user_id, state_key) DO UPDATE SET"
+                " state_value = excluded.state_value",
                 (user_id, state_key, state_value),
             )
 
     def get_user_state(self, user_id, state_key):
         with self.connection() as connection:
             row = connection.execute(
-                "SELECT state_value FROM user_states WHERE user_id = ? AND state_key = ?",
+                "SELECT state_value FROM user_states"
+                " WHERE user_id = ? AND state_key = ?",
                 (user_id, state_key),
             ).fetchone()
             return None if row is None else row["state_value"]
@@ -320,7 +263,8 @@ class TrackerDatabase:
     def delete_user_state(self, user_id, state_key):
         with self.connection() as connection:
             connection.execute(
-                "DELETE FROM user_states WHERE user_id = ? AND state_key = ?",
+                "DELETE FROM user_states"
+                " WHERE user_id = ? AND state_key = ?",
                 (user_id, state_key),
             )
 
@@ -376,38 +320,16 @@ class TrackerDatabase:
     def create_user(self, telegram_id, username=None):
         with self.connection() as connection:
             connection.execute(
-                """
-                INSERT OR IGNORE INTO users
-                (
-                    telegram_id,
-                    username
-                )
-
-                VALUES (?, ?)
-
-                """,
-                (
-                    telegram_id,
-                    username,
-                ),
+                "INSERT OR IGNORE INTO users (telegram_id, username)"
+                " VALUES (?, ?)",
+                (telegram_id, username),
             )
 
     def user_exists(self, telegram_id):
         with self.connection() as connection:
             cursor = connection.execute(
-                """
-                SELECT 1
-
-                FROM users
-
-                WHERE telegram_id = ?
-
-                LIMIT 1
-
-                """,
-                (
-                    telegram_id,
-                ),
+                "SELECT 1 FROM users WHERE telegram_id = ? LIMIT 1",
+                (telegram_id,),
             )
             return cursor.fetchone() is not None
 
@@ -418,32 +340,11 @@ class TrackerDatabase:
     def add_or_update_record(self, user_id, record_date, count):
         with self.connection() as connection:
             connection.execute(
-                """
-                INSERT INTO records
-                (
-                    user_id,
-                    record_date,
-                    count
-                )
-
-                VALUES (?, ?, ?)
-
-
-                ON CONFLICT(
-                    user_id,
-                    record_date
-                )
-
-                DO UPDATE SET
-
-                    count = excluded.count
-
-                """,
-                (
-                    user_id,
-                    record_date.isoformat(),
-                    count,
-                ),
+                "INSERT INTO records (user_id, record_date, count)"
+                " VALUES (?, ?, ?)"
+                " ON CONFLICT(user_id, record_date)"
+                " DO UPDATE SET count = excluded.count",
+                (user_id, record_date.isoformat(), count),
             )
 
     def add_or_update_record_require_user(self, user_id, record_date, count):
@@ -463,115 +364,52 @@ class TrackerDatabase:
                 raise ValueError("User does not exist.")
 
             connection.execute(
-                """
-                INSERT INTO records
-                (
-                    user_id,
-                    record_date,
-                    count
-                )
-
-                VALUES (?, ?, ?)
-
-
-                ON CONFLICT(
-                    user_id,
-                    record_date
-                )
-
-                DO UPDATE SET
-
-                    count = excluded.count
-
-                """,
-                (
-                    user_id,
-                    record_date.isoformat(),
-                    count,
-                ),
+                "INSERT INTO records (user_id, record_date, count)"
+                " VALUES (?, ?, ?)"
+                " ON CONFLICT(user_id, record_date)"
+                " DO UPDATE SET count = excluded.count",
+                (user_id, record_date.isoformat(), count),
             )
 
     def get_record(self, user_id, record_date):
         with self.connection() as connection:
             cursor = connection.execute(
-                """
-                SELECT count
-
-                FROM records
-
-                WHERE user_id = ?
-
-                AND record_date = ?
-
-                """,
-                (
-                    user_id,
-                    record_date.isoformat(),
-                ),
+                "SELECT count FROM records"
+                " WHERE user_id = ? AND record_date = ?",
+                (user_id, record_date.isoformat()),
             )
-
             row = cursor.fetchone()
             return None if row is None else row["count"]
 
     def get_records(self, user_id):
         with self.connection() as connection:
             cursor = connection.execute(
-                """
-                SELECT
-                    record_date,
-                    count
-
-                FROM records
-
-                WHERE user_id = ?
-
-                ORDER BY record_date ASC
-
-                """,
-                (
-                    user_id,
-                ),
+                "SELECT record_date, count FROM records"
+                " WHERE user_id = ?"
+                " ORDER BY record_date ASC",
+                (user_id,),
             )
-
             records = {}
             for row in cursor.fetchall():
                 records[date.fromisoformat(row["record_date"])] = row["count"]
-
             return records
 
     def delete_record(self, user_id, record_date):
         with self.connection() as connection:
             cursor = connection.execute(
-                """
-                DELETE FROM records
-
-                WHERE user_id = ?
-
-                AND record_date = ?
-
-                """,
-                (
-                    user_id,
-                    record_date.isoformat(),
-                ),
+                "DELETE FROM records"
+                " WHERE user_id = ? AND record_date = ?",
+                (user_id, record_date.isoformat()),
             )
-
             if cursor.rowcount == 0:
                 raise ValueError("Record does not exist.")
-
             return True
 
     def delete_user(self, user_id):
         with self.connection() as connection:
             cursor = connection.execute(
-                """
-                DELETE FROM users
-
-                WHERE telegram_id = ?
-                """,
-                (
-                    user_id,
-                ),
+                "DELETE FROM users WHERE telegram_id = ?",
+                (user_id,),
             )
             return cursor.rowcount > 0
 
@@ -582,55 +420,21 @@ class TrackerDatabase:
     def get_setting(self, user_id, setting_key):
         with self.connection() as connection:
             cursor = connection.execute(
-                """
-                SELECT setting_value
-
-                FROM settings
-
-                WHERE user_id = ?
-
-                AND setting_key = ?
-
-                """,
-                (
-                    user_id,
-                    setting_key,
-                ),
+                "SELECT setting_value FROM settings"
+                " WHERE user_id = ? AND setting_key = ?",
+                (user_id, setting_key),
             )
-
             row = cursor.fetchone()
             return None if row is None else row["setting_value"]
 
     def set_setting(self, user_id, setting_key, setting_value):
         with self.connection() as connection:
             connection.execute(
-                """
-                INSERT INTO settings
-                (
-                    user_id,
-                    setting_key,
-                    setting_value
-                )
-
-                VALUES (?, ?, ?)
-
-
-                ON CONFLICT(
-                    user_id,
-                    setting_key
-                )
-
-                DO UPDATE SET
-
-                    setting_value =
-                    excluded.setting_value
-
-                """,
-                (
-                    user_id,
-                    setting_key,
-                    setting_value,
-                ),
+                "INSERT INTO settings (user_id, setting_key, setting_value)"
+                " VALUES (?, ?, ?)"
+                " ON CONFLICT(user_id, setting_key)"
+                " DO UPDATE SET setting_value = excluded.setting_value",
+                (user_id, setting_key, setting_value),
             )
 
     # =========================================================

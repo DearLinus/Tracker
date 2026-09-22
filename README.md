@@ -1,6 +1,6 @@
-# Daily Tracker
+# Daily Tracker Bot
 
-A Telegram bot for tracking daily records, viewing statistics and history, exporting data, and generating trend graphs over time.
+A production-ready Telegram bot for tracking daily records with statistics, history, data export, and trend visualization. Designed for multi-user deployments with persistent state, timezone support, and comprehensive access controls.
 
 ## Features
 
@@ -74,6 +74,27 @@ Each user's:
 are isolated using their Telegram user ID.
 
 One user's data cannot be accessed through another user's tracker records.
+
+### 🔐 Access Control
+
+Optional allowlist support restricts bot access to specific Telegram user IDs.
+
+Configure in `.env`:
+
+```env
+ALLOWED_USER_IDS=123456789,987654321
+```
+
+If set with invalid syntax or zero valid IDs, the application fails immediately with a configuration error instead of silently allowing all users. This prevents accidental access control bypass.
+
+### ⏳ Rate Limiting
+
+Expensive operations are rate-limited to prevent abuse:
+
+* **Graph generation**: 1 per minute per user
+* **Export**: 1 per minute per user
+
+Uses a fixed-window rate limiter tracking requests per operation and user.
 
 ### 🌍 Timezone-aware Date Logic
 
@@ -193,28 +214,83 @@ pip install -r requirements-dev.txt
 Create a `.env` file in the project root:
 
 ```env
+# Required
 TELEGRAM_BOT_TOKEN=your_bot_token
-```
 
-Optional settings:
+# Optional: restrict access to specific Telegram user IDs (comma-separated)
+# If set with invalid syntax, the bot will fail at startup
+ALLOWED_USER_IDS=
 
-```env
+# Optional: custom database file path
 DATABASE_PATH=tracker.db
 
+# Optional: Telegram sticker IDs for visual feedback
 WELCOME_STICKER_ID=
 SUCCESS_STICKER_ID=
 ERROR_STICKER_ID=
+
+# Optional: custom log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+LOG_LEVEL=INFO
 ```
 
-`TELEGRAM_BOT_TOKEN` is required. If it is missing, the application fails immediately with a configuration error instead of starting with an invalid configuration.
-
-Do not commit `.env` or your bot token to the repository.
+**Security notes:**
+- `TELEGRAM_BOT_TOKEN` is required and validated at startup. Missing or invalid tokens cause immediate startup failure.
+- Never commit `.env` or your bot token to version control.
+- If `ALLOWED_USER_IDS` is set but empty/invalid, the bot will fail fast with a configuration error.
 
 ## Deployment
 
-For production Linux deployments, see [docs/systemd.md](docs/systemd.md) for a systemd service example.
+### Linux (systemd)
 
-The project is already close to container-friendly deployment because it reads most configuration from environment variables, supports a configurable SQLite path via `DATABASE_PATH`, and keeps runtime artifacts in clearly defined directories.
+For production Linux deployments, see [docs/systemd.md](docs/systemd.md) for a complete systemd service example with:
+
+* Service file template
+* Environment configuration
+* Logging setup
+* Automated restarts
+
+### General Requirements
+
+The project is deployment-friendly because:
+
+* All configuration is environment-variable based
+* Database file location is configurable (`DATABASE_PATH`)
+* Logging is configurable by level
+* No hardcoded paths or secrets
+* Supports running alongside other processes
+
+### Continuous Integration
+
+The project includes a GitHub Actions CI workflow (`.github/workflows/ci.yml`) that:
+
+* Runs on every push and pull request
+* Tests against Python 3.12
+* Runs the full test suite
+* Validates code with Ruff linter
+* Ensures all 304 tests pass
+* Checks timezone-deterministic end-to-end tests
+
+View CI status and logs in the GitHub Actions tab.
+
+### Container Deployment
+
+While a Dockerfile is not included, the application can be containerized by:
+
+1. Installing Python 3.12 and dependencies from `requirements.txt`
+2. Copying the application files
+3. Setting environment variables for `TELEGRAM_BOT_TOKEN` and `DATABASE_PATH`
+4. Running `python bot.py`
+
+Example minimal Dockerfile approach:
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+CMD ["python", "bot.py"]
+```
 
 ## Windows Notes
 
@@ -275,65 +351,150 @@ Records are uniquely associated with a user and date.
 
 ### Database migrations
 
-Database schema changes are handled through a migration system tracked in the `schema_migrations` table.
+Database schema changes are managed through a transactional migration system tracked in the `schema_migrations` table.
 
-Current migrations include:
+Applied migrations:
 
-```text
-001_init_schema
-002_add_indexes
-003_user_states
-004_clean_indexes
+| Migration | Purpose |
+|-----------|---------|
+| `001_init_schema` | Initialize users, records, and settings tables |
+| `002_add_indexes` | Add performance indexes on (user_id, record_date) and (user_id, setting_key) |
+| `003_user_states` | Add user_states table for persistent conversation state |
+| `004_clean_indexes` | Remove duplicate indexes and ensure canonical naming |
+| `005_consolidate_index_cleanup` | Unified index cleanup: remove duplicates, drop redundant explicit indexes when SQLite autoindexes cover them |
+| `007_add_rate_limits` | Add rate_limits table for operation throttling |
+
+Each migration is applied transactionally so failures can be rolled back without leaving a partially modified schema.
+
+## Backup and Restore
+
+### Creating a Backup
+
+The project includes SQLite backup utilities in `backup.py` using SQLite's native backup mechanism.
+
+Create a backup programmatically:
+
+```python
+from backup import backup_database
+
+# Backup to directory with auto-generated timestamp
+backup_path = backup_database('tracker.db', 'backups')
+print(f"Backup saved to: {backup_path}")
 ```
 
-Each migration is applied transactionally so that a failed migration can be rolled back instead of leaving a partially modified schema.
-
-## Backup
-
-The project includes SQLite backup utilities in `backup.py`.
-
-A backup can be created with:
+Or via CLI:
 
 ```bash
-python -c "from backup import backup_database; print(backup_database('tracker.db', 'backups'))"
+python backup.py backup --db-path tracker.db --backup-dir backups
 ```
 
-The backup uses SQLite's native backup mechanism, allowing the database to be backed up safely while the bot is running.
+**Key benefits of native SQLite backup:**
+- Safe to backup while the bot is running (no database locking)
+- Preserves WAL journal state
+- Atomic and consistent copy
+- Includes all data and indexes
 
-When restoring a database backup, stop the bot/service first so no other process is writing to the database while the restore is in progress. This prevents WAL or in-flight writes from being missed or mixed with the restored state.
+### Restoring a Backup
 
-The resulting backup is timestamped and stored in the specified directory.
+⚠️ **Important**: Stop the bot/service before restoring to prevent write conflicts:
 
-For automated backups, the command can be scheduled with tools such as:
+```bash
+systemctl stop tracker  # if using systemd
+```
 
-* cron
-* systemd timers
-* Windows Task Scheduler
+Then restore:
+
+```bash
+python backup.py restore --db-path tracker.db --backup-file backups/tracker-2024-01-15-120305.db
+```
+
+Or programmatically:
+
+```python
+from backup import restore_database
+
+restore_database('tracker.db', 'backups/tracker-2024-01-15-120305.db')
+```
+
+After restoration, restart the bot:
+
+```bash
+systemctl start tracker
+```
+
+### Automated Backups
+
+Schedule regular backups using:
+
+* **cron** (Linux): `0 2 * * * cd /path/to/tracker && python -c "from backup import backup_database; backup_database('tracker.db', 'backups')"`
+* **systemd timer** (Linux): Create a timer unit to run the backup service
+* **Windows Task Scheduler**: Create a task to run the backup script
+
+### Backup Retention
+
+Backup files are automatically timestamped. Implement retention by:
+- Removing backups older than N days: `find backups -name "*.db" -mtime +30 -delete`
+- Keeping only the last N backups: Manual cleanup or script
 
 ## Architecture
 
-The project uses a layered architecture that separates Telegram-specific code from business logic and database access.
+The project uses a layered, event-driven architecture that cleanly separates Telegram-specific code from business logic and database persistence.
 
-```text
-Telegram
-   │
-   ▼
-handlers/
-   │
-   ▼
-services/tracker_service.py
-   │
-   ▼
-logic.py
-   │
-   ▼
-database.py
-   │
-   ▼
-SQLite
+```
+┌─────────────────────────┐
+│   Telegram Network      │
+└────────────┬────────────┘
+             │
+┌────────────▼────────────────────────────────┐
+│   handlers/                                 │
+│   ├─ Telegram updates → message parsing     │
+│   ├─ State machine (router.py)              │
+│   ├─ User interaction flows                 │
+│   └─ Inline response generation             │
+└────────────┬─────────────────────────────────┘
+             │
+┌────────────▼────────────────────────────────┐
+│   services/tracker_service.py               │
+│   Application-scoped tracker instance       │
+│   (Stored in Application.bot_data)          │
+└────────────┬─────────────────────────────────┘
+             │
+┌────────────▼────────────────────────────────┐
+│   logic.py                                  │
+│   ├─ Business rules                         │
+│   ├─ User/record operations                 │
+│   ├─ Statistics & calculations              │
+│   ├─ Validation                             │
+│   └─ Timezone-aware logic                   │
+└────────────┬─────────────────────────────────┘
+             │
+┌────────────▼────────────────────────────────┐
+│   database.py                               │
+│   ├─ SQLite connection pool                 │
+│   ├─ Schema + migrations                    │
+│   ├─ CRUD operations                        │
+│   ├─ Transactional safety                   │
+│   └─ User data isolation                    │
+└────────────┬─────────────────────────────────┘
+             │
+┌────────────▼────────────────────────────────┐
+│   SQLite (tracker.db or DATABASE_PATH)      │
+│   WAL mode, foreign key constraints         │
+└─────────────────────────────────────────────┘
 ```
 
-### `bot.py`
+### Key Design Principles
+
+1. **Separation of Concerns**: Telegram logic is isolated from business rules and database access
+2. **Testability**: Each layer can be tested independently; database operations are abstracted
+3. **Type Safety**: Python 3.12+ with type hints (mypy-compatible)
+4. **Error Handling**: Graceful degradation; user-friendly error messages; detailed internal logging
+5. **State Management**: Persistent conversation state allows resuming flows after restarts
+6. **Scalability**: SQLite supports multi-user concurrency; connection pooling available
+7. **Maintainability**: Clear module responsibilities; minimal coupling between layers
+
+### Module Responsibilities
+
 
 Main application entry point.
 
@@ -453,125 +614,208 @@ Contains shared timezone-related helpers and the default timezone configuration.
 
 ## Testing
 
-The project has an automated test suite covering the main application layers.
+The project includes a comprehensive automated test suite covering all application layers.
 
-Tests include:
+### Test Coverage
 
-* database behavior
-* migrations
-* business logic
-* graph generation
-* graph handlers
-* record handlers
-* integration flows
-* end-to-end flows
-* router behavior
-* settings
-* statistics
-* history
-* CSV export
-* keyboards
-* configuration
-* tracker service
-* timezone-related utilities
-* backup functionality
-* bot setup
+Tests are organized by module and include:
 
-Run the complete test suite with:
+* **Database layer**: schema creation, migrations, WAL safety, backup/restore
+* **Business logic**: record operations, statistics, settings, user state, timezone handling
+* **Handlers**: record entry, graph generation, export, deletion, settings, navigation
+* **Integration tests**: complete flows (record creation → statistics, export → CSV)
+* **End-to-end tests**: multi-step user interactions with proper timezone handling
+* **Rate limiting**: window bucketing, exact boundaries, operation isolation
+* **Input validation**: date parsing, Persian/Arabic numeral normalization, negative-value rejection
+* **Access control**: allowlist enforcement, fail-fast validation
+* **Configuration**: environment setup, TESTING mode database isolation
+
+### Running Tests
+
+Run the complete suite:
 
 ```bash
 pytest -q
 ```
 
-Current test result:
+With coverage report:
 
-```text
-211 passed
+```bash
+pytest --cov=. --cov-report=term-missing
 ```
 
-The full suite currently completes successfully.
+Run specific test file:
+
+```bash
+pytest tests/test_database.py -v
+```
+
+### Current Test Results
+
+```
+304 passed in ~5 seconds
+```
+
+All tests pass on Python 3.12+ with pytest-asyncio.
 
 ## Project Structure
 
 ```text
 Tracker/
-├── backup.py
-├── bot.py
-├── config.py
-├── database.py
-├── graph.py
-├── keyboards.py
-├── logic.py
-├── README.md
-├── requirements.txt
-├── requirements-dev.txt
-├── timezone.py
-├
+├── bot.py                       # Application entry point
+├── config.py                    # Configuration loading
+├── database.py                  # SQLite persistence layer + migrations
+├── logic.py                     # Business logic (users, records, statistics)
+├── graph.py                     # Matplotlib-based trend graphs
+├── keyboards.py                 # Telegram UI button definitions
+├── timezone.py                  # Timezone utilities
+├── backup.py                    # SQLite backup/restore using native backup API
+├── requirements.txt             # Production dependencies
+├── requirements-dev.txt         # Development/test dependencies
+├── README.md                    # This file
+├── LICENSE                      # GNU GPLv3 license
 │
-├── handlers/
-│   ├── __init__.py
-│   ├── constants.py
-│   ├── export.py
-│   ├── graph.py
-│   ├── history.py
-│   ├── navigation.py
-│   ├── records.py
-│   ├── router.py
-│   ├── settings.py
-│   ├── start.py
-│   ├── statistics.py
-│   └── utils.py
+├── docs/
+│   └── systemd.md              # Production deployment with systemd
 │
-├── services/
-│   ├── __init__.py
-│   └── tracker_service.py
+├── handlers/                    # Telegram-specific interaction handlers
+│   ├── router.py               # Message routing and state machine
+│   ├── constants.py            # UI strings and constants
+│   ├── start.py                # /start command
+│   ├── records.py              # Record entry flows
+│   ├── statistics.py           # Statistics display
+│   ├── history.py              # History view
+│   ├── export.py               # CSV export
+│   ├── graph.py                # Graph generation and display
+│   ├── settings.py             # User settings (theme, timezone)
+│   ├── navigation.py           # Menu navigation
+│   ├── utils.py                # Shared handler utilities
+│   └── __init__.py
 │
-└── tests/
-    ├── __init__.py
-    ├── conftest.py
-    ├── test_backup.py
-    ├── test_bot.py
-    ├── test_config.py
-    ├── test_database.py
-    ├── test_e2e.py
-    ├── test_export_handler.py
-    ├── test_graph.py
-    ├── test_graph_handler.py
-    ├── test_history_handler.py
-    ├── test_keyboards.py
-    ├── test_logic.py
-    ├── test_records_handler.py
-    ├── test_records_integration.py
-    ├── test_router.py
-    ├── test_settings_handler.py
-    ├── test_start_handler.py
-    ├── test_statistics_handler.py
-    ├── test_tracker_service.py
-    └── test_utils.py
+├── services/                    # Application services
+│   ├── tracker_service.py      # Tracker instance management
+│   └── __init__.py
+│
+└── tests/                       # Comprehensive test suite (304 tests)
+    ├── conftest.py             # Pytest configuration and fixtures
+    ├── helpers.py              # Test utility functions
+    ├── test_database.py        # Database layer, migrations
+    ├── test_logic.py           # Business logic
+    ├── test_bot.py             # Bot initialization
+    ├── test_config.py          # Configuration validation
+    ├── test_backup.py          # Backup/restore functionality
+    ├── test_router.py          # Message routing
+    ├── test_records_*.py       # Record entry flows
+    ├── test_statistics_*.py    # Statistics calculations
+    ├── test_history_*.py       # History display
+    ├── test_export_*.py        # CSV export
+    ├── test_graph*.py          # Graph generation
+    ├── test_settings_*.py      # Settings management
+    ├── test_start_*.py         # /start command
+    ├── test_migration_*.py     # Migration correctness
+    ├── test_rate_limit.py      # Rate limiting
+    ├── test_input_parsing.py   # Input validation (Persian digits, dates)
+    ├── test_keyboards.py       # UI elements
+    ├── test_tracker_service.py # Service layer
+    ├── test_access_control.py  # Allowlist validation
+    ├── test_backup_restore.py  # Backup safety
+    ├── test_state_fallthrough.py # Conversation state handling
+    ├── test_e2e.py             # End-to-end user flows
+    └── test_*.py               # Additional module tests
 ```
 
 ## Development
 
-The Telegram bot is maintained separately from the desktop version of Daily Tracker.
+### Code Quality
 
-The `telegram-bot` branch contains the Telegram implementation, while the main branch is used for the desktop application.
-
-Before submitting changes, run:
+Before submitting changes, ensure:
 
 ```bash
+# Run all tests
 pytest -q
+
+# Check test coverage
+pytest --cov=. --cov-report=term-missing
+
+# Lint with Ruff
+ruff check .
 ```
 
-All tests should pass before committing changes.
+All tests must pass and new code should maintain or improve test coverage.
 
-## Security and Configuration Notes
+### Branch Structure
 
-* Never commit `.env`.
-* Never commit the Telegram bot token.
-* Keep production database files outside version control.
-* Use backups for important production databases.
-* User data is isolated by Telegram user ID.
-* Data deletion is protected by an explicit confirmation step.
+* `telegram-bot` — Production Telegram bot implementation (active branch)
+* `main` — Desktop version (separate from Telegram implementation)
+
+### Making Changes
+
+1. Create a feature branch from `telegram-bot`
+2. Implement changes with tests
+3. Verify all tests pass (`pytest -q`)
+4. Check linting passes (`ruff check .`)
+5. Commit with descriptive message
+6. Push and create a pull request
+
+### Testing Guidelines
+
+* Write tests first (TDD approach) for new features
+* Maintain 100% test pass rate
+* Use fixtures from `tests/conftest.py` for common setup
+* Test both happy paths and error cases
+* Integration tests should use real database state, not mocks
+
+## Security and Configuration Best Practices
+
+### Environment Variables
+
+* **Never commit** `.env` files or bot tokens
+* **Never store** credentials in code or configuration files
+* **Always use** environment variables or `.env` for secrets
+* **Keep** production database files outside version control
+
+### Access Control
+
+* Use `ALLOWED_USER_IDS` to restrict bot access to specific Telegram users
+* Configuration is validated at startup (fail-fast for invalid allowlists)
+* User data is isolated by Telegram user ID
+* Cross-user data access is impossible through the application layer
+
+### Data Safety
+
+* User data is protected by SQLite foreign key constraints
+* Record deletion is protected by an explicit confirmation step
+* Data exports are generated on-demand without caching personal data
+* Database transactions ensure atomic operations
+
+### Backup and Restore
+
+* Use the provided `backup.py` for database backups
+* Backups use SQLite's native backup mechanism (safe during active operation)
+* **Stop the bot** before restoring a backup to prevent write conflicts
+* Store backups separately from the main database
+
+### Logging
+
+* Sensitive data (tokens, user IDs) is not logged
+* Application errors are logged internally without exposing stack traces to users
+* Configure `LOG_LEVEL` for debug/production scenarios
+* Log files use rotation to prevent unbounded growth
+
+### Input Validation
+
+* All user input is validated:
+  - Numeric fields reject negative values
+  - Dates reject past future dates and unsupported formats
+  - Persian/Arabic numerals are normalized automatically
+  - Graph parameters are whitelisted
+
+### Database
+
+* Foreign key constraints are enforced
+* UNIQUE constraints prevent duplicate records per user/date
+* WAL mode provides write performance and crash recovery
+* Busy timeout handles concurrent access gracefully
 
 ## License
 

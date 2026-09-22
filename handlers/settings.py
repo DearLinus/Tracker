@@ -57,7 +57,7 @@ async def change_graph_theme(
 
     user_id = get_user_id(update)
     reset_state(context)
-    clear_user_state(update, context)
+    await asyncio.to_thread(functools.partial(clear_user_state, update, context))
 
     if theme == DARK_THEME:
         message = (
@@ -127,7 +127,7 @@ async def confirm_delete_data(
 
     # Clear transient state first
     reset_state(context)
-    clear_user_state(update, context)
+    await asyncio.to_thread(functools.partial(clear_user_state, update, context))
 
     tracker = get_tracker(context)
 
