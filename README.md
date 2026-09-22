@@ -210,6 +210,12 @@ ERROR_STICKER_ID=
 
 Do not commit `.env` or your bot token to the repository.
 
+## Deployment
+
+For production Linux deployments, see [docs/systemd.md](docs/systemd.md) for a systemd service example.
+
+The project is already close to container-friendly deployment because it reads most configuration from environment variables, supports a configurable SQLite path via `DATABASE_PATH`, and keeps runtime artifacts in clearly defined directories.
+
 ## Windows Notes
 
 The project includes `tzdata` for Windows environments to support timezone resolution.

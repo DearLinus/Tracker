@@ -40,7 +40,6 @@ def configure_logging(log_dir: Path | str = "logs"):
     # creating file handlers, and avoid forcing global handler replacement
     # unless explicitly requested.
     no_file = os.getenv("NO_FILE_LOGS") is not None
-    log_path.mkdir(exist_ok=True)
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(
@@ -50,6 +49,7 @@ def configure_logging(log_dir: Path | str = "logs"):
     handlers = [stream_handler]
 
     if not no_file:
+        log_path.mkdir(exist_ok=True)
         from logging.handlers import RotatingFileHandler
 
         file_handler = RotatingFileHandler(
