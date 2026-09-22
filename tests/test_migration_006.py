@@ -18,8 +18,10 @@ def test_migration_006_drops_explicit_idx(tmp_path):
     rec_indexes = list(con.execute("PRAGMA index_list('records')"))
     names = [r[1] for r in rec_indexes]
 
-    # Expect that canonical idx_records_user_date exists and duplicates removed
-    assert any(n == 'idx_records_user_date' for n in names)
+    # The UNIQUE(user_id, record_date) constraint creates the canonical autoindex.
+    # The redundant explicit index should be cleaned up during migration.
+    assert not any(n == 'idx_records_user_date' for n in names)
+    assert any(n.startswith('sqlite_autoindex_records_') for n in names)
     assert not any(n.endswith('_dup') for n in names)
 
     set_indexes = list(con.execute("PRAGMA index_list('settings')"))

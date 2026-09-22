@@ -36,7 +36,6 @@ class FakeContext:
 
 @pytest.mark.parametrize("env,expected", [
     (None, set()),
-    ("", set()),
     ("123, 456", {123, 456}),
     ("  7 ,8,9  ", {7, 8, 9}),
     ("bad,10", {10}),
@@ -48,6 +47,22 @@ def test_parse_allowed_user_ids(env, expected, monkeypatch):
         monkeypatch.setenv("ALLOWED_USER_IDS", env)
 
     assert _parse_allowed_user_ids() == expected
+
+
+@pytest.mark.parametrize("env", ["", "bad", "bad,not-a-number", " , "])
+def test_parse_allowed_user_ids_rejects_invalid_configured_value(env, monkeypatch):
+    monkeypatch.setenv("ALLOWED_USER_IDS", env)
+
+    with pytest.raises(ValueError, match="ALLOWED_USER_IDS"):
+        _parse_allowed_user_ids()
+
+
+@pytest.mark.asyncio
+async def test_is_user_allowed_raises_for_invalid_allowlist_configuration(monkeypatch):
+    monkeypatch.setenv("ALLOWED_USER_IDS", "invalid")
+
+    with pytest.raises(ValueError, match="ALLOWED_USER_IDS"):
+        is_user_allowed(1)
 
 
 @pytest.mark.asyncio

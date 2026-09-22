@@ -6,6 +6,26 @@ import pytest
 from backup import backup_database, restore_database
 
 
+def test_backup_captures_wal_state(tmp_path):
+    db_path = tmp_path / "wal.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, value TEXT)")
+        conn.execute("INSERT INTO items (value) VALUES ('wal-row')")
+        conn.commit()
+    finally:
+        conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_path = backup_database(str(db_path), str(backup_dir))
+
+    with sqlite3.connect(backup_path) as backup_conn:
+        row = backup_conn.execute("SELECT value FROM items WHERE value = 'wal-row'").fetchone()
+        assert row is not None
+        assert row[0] == "wal-row"
+
+
 def test_backup_success(tmp_path):
     db = tmp_path / "test.db"
     # create a simple DB

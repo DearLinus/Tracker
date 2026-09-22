@@ -168,23 +168,18 @@ async def handle_text(
             return
 
     elif awaiting == TODAY_COUNT:
-        # Only forward to the handler if the message looks like a number.
-        # Otherwise treat as unknown input to avoid accidental execution
-        # when users send unrelated messages while a state is active.
-        if text.lstrip("-").isdigit():
-            await save_today_record(update, context)
-            return
-        # fall through to unknown handling below
+        # Keep the record-entry state active for invalid input so the user gets
+        # the specific validation message rather than falling through to the
+        # generic “I didn't understand that” response.
+        await save_today_record(update, context)
+        return
 
     elif awaiting == NEW_RECORD:
-        # Expect format: YYYY-MM-DD count. If it doesn't match, treat as unknown
-        parts = text.split()
-        if len(parts) == 2:
-            date_part, count_part = parts
-            if date_part.count("-") == 2 and (count_part.lstrip("-").isdigit()):
-                await save_new_record(update, context)
-                return
-        # fall through to unknown handling below
+        # The record validator decides whether the input is valid; we keep the
+        # state active so users can correct malformed entries without losing the
+        # context.
+        await save_new_record(update, context)
+        return
 
 
     # =====================================================

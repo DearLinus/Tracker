@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from telegram import Update
@@ -109,26 +109,11 @@ def get_user_today(update, context: ContextTypes.DEFAULT_TYPE):
     ).date()
 
 
-def parse_int(text: str) -> int:
-    """
-    Parse an integer from text accepting ASCII digits and Arabic-Indic / Eastern Arabic-Indic.
-    Preserves support for localized digits used by some users.
-
-    Rejects non-integer formats such as '1_0' or floats '3.5'. Allows leading '+' like '+5'.
-    """
+def normalize_digits(text: str) -> str:
+    """Normalize Arabic/Persian numerals to ASCII digits without changing format."""
     if not isinstance(text, str):
-        raise TypeError("invalid literal for int()")
+        raise TypeError("text must be a string")
 
-    s = text.strip()
-
-    # allow leading plus or minus; caller can validate negativity
-    if s.startswith("+"):
-        s = s[1:]
-    elif s.startswith("-"):
-        # keep the leading '-' so int() can parse a negative number
-        pass
-
-    # Normalize Arabic-Indic digits to ASCII
     arabic_map = {
         ord("٠"): "0",
         ord("١"): "1",
@@ -151,15 +136,65 @@ def parse_int(text: str) -> int:
         ord("۸"): "8",
         ord("۹"): "9",
     }
+    return text.translate(arabic_map)
 
-    normalized = s.translate(arabic_map)
+
+def parse_int(text: str) -> int:
+    """
+    Parse an integer from text accepting ASCII digits and Arabic-Indic / Eastern Arabic-Indic.
+    Preserves support for localized digits used by some users.
+
+    Rejects non-integer formats such as '1_0' or floats '3.5'. Allows leading '+' like '+5'.
+    """
+    if not isinstance(text, str):
+        raise TypeError("invalid literal for int()")
+
+    s = normalize_digits(text.strip())
+
+    # allow leading plus or minus; caller can validate negativity
+    if s.startswith("+"):
+        s = s[1:]
+    elif s.startswith("-"):
+        # keep the leading '-' so int() can parse a negative number
+        pass
 
     # reject underscores or decimal points
-    if "_" in normalized or "." in normalized or "," in normalized:
+    if "_" in s or "." in s or "," in s:
         raise ValueError("invalid literal for int()")
 
     # Now rely on int() which will raise ValueError for bad formats
-    return int(normalized)
+    return int(s)
+
+
+def parse_date(text: str) -> date:
+    """Parse an ISO date while normalizing local digit sets and rejecting invalid years/formats."""
+    if not isinstance(text, str):
+        raise TypeError("date must be a string")
+
+    normalized = normalize_digits(text.strip())
+    if not normalized:
+        raise ValueError("invalid date")
+
+    # Keep backward compatibility: accept only the ISO YYYY-MM-DD format.
+    if not normalized.count("-") == 2:
+        raise ValueError("invalid date")
+
+    year_part, month_part, day_part = normalized.split("-")
+    if not (year_part.isdigit() and month_part.isdigit() and day_part.isdigit()):
+        raise ValueError("invalid date")
+
+    if len(year_part) != 4 or len(month_part) != 2 or len(day_part) != 2:
+        raise ValueError("invalid date")
+
+    try:
+        parsed = date.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError("invalid date") from exc
+
+    if parsed.year < 1:
+        raise ValueError("invalid date")
+
+    return parsed
 
 
 _CACHED_ALLOWED_IDS: set | None = None
@@ -171,31 +206,59 @@ def _parse_allowed_user_ids() -> set[int]:
 
     Format: comma-separated integers, e.g. "123,456".
     Empty or missing value returns an empty set meaning "no restriction".
-    Malformed entries are ignored.
+    Malformed entries are ignored unless the variable is configured but resolves
+    to zero valid IDs, in which case the configuration is rejected.
     """
     global _CACHED_ALLOWED_IDS, _CACHED_ALLOWED_RAW
-    raw = os.getenv("ALLOWED_USER_IDS", "").strip()
+    raw = os.getenv("ALLOWED_USER_IDS")
 
-    # If cached and the raw env matches previous value, return cached set
-    if _CACHED_ALLOWED_RAW is not None and raw == _CACHED_ALLOWED_RAW and _CACHED_ALLOWED_IDS is not None:
-        return set(_CACHED_ALLOWED_IDS)
-
-    if not raw:
+    if raw is None:
         _CACHED_ALLOWED_IDS = set()
-        _CACHED_ALLOWED_RAW = raw
+        _CACHED_ALLOWED_RAW = None
         return set()
 
-    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    raw_value = raw.strip()
+
+    # If cached and the raw env matches previous value, return cached set
+    if _CACHED_ALLOWED_RAW is not None and raw_value == _CACHED_ALLOWED_RAW and _CACHED_ALLOWED_IDS is not None:
+        return set(_CACHED_ALLOWED_IDS)
+
+    if not raw_value:
+        raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
+
+    parts = [p.strip() for p in raw_value.split(",") if p.strip()]
     ids: set[int] = set()
     for p in parts:
         try:
             ids.add(int(p))
         except ValueError:
-            # Ignore malformed entries
+            # Ignore malformed entries.
             continue
+
+    if not ids:
+        raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
+
     _CACHED_ALLOWED_IDS = set(ids)
-    _CACHED_ALLOWED_RAW = raw
+    _CACHED_ALLOWED_RAW = raw_value
     return set(ids)
+
+
+def validate_allowed_user_ids() -> set[int]:
+    """Validate the allowlist at startup.
+
+    A configured allowlist must resolve to at least one valid user ID.
+    """
+    raw = os.getenv("ALLOWED_USER_IDS")
+    if raw is None:
+        return set()
+
+    if not raw.strip():
+        raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
+
+    allowed = _parse_allowed_user_ids()
+    if not allowed:
+        raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
+    return allowed
 
 
 def is_user_allowed(user_id: int) -> bool:
@@ -203,6 +266,12 @@ def is_user_allowed(user_id: int) -> bool:
 
     If `ALLOWED_USER_IDS` is not set or empty, all users are allowed.
     """
+    raw = os.getenv("ALLOWED_USER_IDS")
+    if raw is None:
+        return True
+    if not raw.strip():
+        raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
+
     allowed = _parse_allowed_user_ids()
     if not allowed:
         return True

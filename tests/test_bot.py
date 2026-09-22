@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from telegram import Update
 
 import bot
 
@@ -69,4 +70,14 @@ def test_main_builds_application(monkeypatch):
 
             setup_app.assert_called()
             reg.assert_called_once()
-            fake_app.run_polling.assert_called()
+            fake_app.run_polling.assert_called_with(allowed_updates=[Update.MESSAGE])
+
+
+def test_main_fails_fast_on_invalid_allowlist(monkeypatch):
+    monkeypatch.setenv("NO_FILE_LOGS", "1")
+    monkeypatch.setenv("TESTING", "1")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "abc123")
+    monkeypatch.setenv("ALLOWED_USER_IDS", "invalid")
+
+    with pytest.raises(ValueError, match="ALLOWED_USER_IDS"):
+        bot.main()

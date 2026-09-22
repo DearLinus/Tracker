@@ -38,7 +38,36 @@ async def test_unknown_message_clears_state(monkeypatch):
     update = FakeUpdate("I am lost")
     context = FakeContext()
 
-    # Simulate persisted awaiting state
+    class FakeTracker:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
+
+    await handle_text(update, context)
+
+    assert context.user_data.get('awaiting') is None
+
+
+@pytest.mark.asyncio
+async def test_invalid_record_input_keeps_state_and_shows_validation(monkeypatch):
+    update = FakeUpdate("abc")
+    context = FakeContext()
     context.user_data['awaiting'] = 'today_count'
 
     class FakeTracker:
@@ -64,8 +93,41 @@ async def test_unknown_message_clears_state(monkeypatch):
 
     await handle_text(update, context)
 
-    # awaiting should be cleared
-    assert context.user_data.get('awaiting') is None
+    assert context.user_data.get('awaiting') == 'today_count'
+    assert "whole number" in update.message.replies[0]
+
+
+@pytest.mark.asyncio
+async def test_invalid_new_record_input_keeps_state_and_shows_validation(monkeypatch):
+    update = FakeUpdate("wrong")
+    context = FakeContext()
+    context.user_data['awaiting'] = 'new_record'
+
+    class FakeTracker:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    from tests.helpers import autospec_tracker
+
+    context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
+
+    await handle_text(update, context)
+
+    assert context.user_data.get('awaiting') == 'new_record'
+    assert "Invalid format" in update.message.replies[0]
 
 
 @pytest.mark.asyncio

@@ -177,6 +177,42 @@ def _drop_explicit_redundant_indexes(connection):
 # New migration 006: drop explicit indexes redundant with sqlite_autoindex
 MIGRATIONS.append(("006_drop_explicit_indexes_redundant_with_autoindex", _drop_explicit_redundant_indexes))
 
+
+def _drop_redundant_records_user_date_index(connection):
+    """Drop the explicit records index when it duplicates the UNIQUE autoindex.
+
+    SQLite creates a sqlite_autoindex_... entry for UNIQUE(user_id, record_date).
+    The explicit `idx_records_user_date` index duplicates that same covering index,
+    so it is safe to remove while keeping the uniqueness guarantee intact.
+    """
+    try:
+        index_list = list(connection.execute("PRAGMA index_list('records')"))
+    except sqlite3.Error:
+        return
+
+    explicit = None
+    autoindex_cols = None
+    for row in index_list:
+        name = row[1]
+        if name == "idx_records_user_date":
+            try:
+                info = list(connection.execute("PRAGMA index_info('idx_records_user_date')"))
+            except sqlite3.Error:
+                return
+            explicit = tuple(item[2] for item in info)
+        elif name.startswith("sqlite_autoindex_records_"):
+            try:
+                info = list(connection.execute(f"PRAGMA index_info('{name}')"))
+            except sqlite3.Error:
+                continue
+            autoindex_cols = tuple(item[2] for item in info)
+
+    if explicit == ("user_id", "record_date") and autoindex_cols == ("user_id", "record_date"):
+        connection.execute('DROP INDEX IF EXISTS "idx_records_user_date"')
+
+
+MIGRATIONS.append(("008_drop_redundant_records_user_date_index", _drop_redundant_records_user_date_index))
+
 MIGRATIONS.append(
     (
         "007_add_rate_limits",

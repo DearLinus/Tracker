@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import ClassVar
 
+from telegram import Update
 from telegram.ext import (
     Application,
     MessageHandler,
@@ -12,6 +13,7 @@ from telegram.ext import (
 from config import TELEGRAM_BOT_TOKEN
 from handlers import register_handlers
 from handlers.router import handle_text
+from handlers.utils import validate_allowed_user_ids
 
 
 class ColoredFormatter(logging.Formatter):
@@ -122,6 +124,8 @@ def main():
             "TELEGRAM_BOT_TOKEN is not configured."
         )
 
+    validate_allowed_user_ids()
+
     app = (
         Application
         .builder()
@@ -150,7 +154,7 @@ def main():
         "Daily Tracker bot is running..."
     )
 
-    app.run_polling()
+    app.run_polling(allowed_updates=[Update.MESSAGE])
 
 
 if __name__ == "__main__":

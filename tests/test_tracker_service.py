@@ -1,3 +1,4 @@
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -28,6 +29,22 @@ def test_setup_application_stores_tracker_on_bot_data(tmp_path):
 
     assert isinstance(tracker, TrackerLogic)
     assert app.bot_data["tracker"] is tracker
+
+
+def test_setup_application_testing_uses_shared_temp_file_db(monkeypatch):
+    monkeypatch.setenv("TESTING", "1")
+    app1 = FakeApp()
+    app2 = FakeApp()
+
+    tracker1 = setup_application(app1)
+    tracker2 = setup_application(app2)
+
+    assert tracker1.database.db_path != ":memory:"
+    assert os.path.exists(tracker1.database.db_path)
+    assert tracker1.database.db_path == tracker2.database.db_path
+
+    tracker1.create_user(42, "alice")
+    assert tracker2.user_exists(42)
 
 
 def test_setup_application_reuses_existing_bot_data(tmp_path):

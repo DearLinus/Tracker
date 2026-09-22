@@ -1,4 +1,9 @@
+import os
+import tempfile
+
 from logic import TrackerLogic
+
+_TESTING_DB_PATH = None
 
 
 def setup_application(app, db_path=None):
@@ -8,11 +13,17 @@ def setup_application(app, db_path=None):
     Application owns its own service instance instead of sharing a process-wide
     singleton.
     """
-    # During tests we prefer using an explicit in-memory DB. Tests can set
-    # the TESTING environment variable to indicate this preference.
-    import os
+    global _TESTING_DB_PATH
+
+    # During tests, prefer a temporary SQLite file instead of :memory:.
+    # SQLite in-memory databases are isolated per connection, which breaks
+    # tests that create multiple tracker instances or connections against the
+    # same logical database.
     if db_path is None and os.getenv("TESTING"):
-        db_path = ":memory:"
+        if _TESTING_DB_PATH is None:
+            fd, _TESTING_DB_PATH = tempfile.mkstemp(prefix="tracker_test_", suffix=".db")
+            os.close(fd)
+        db_path = _TESTING_DB_PATH
 
     tracker_instance = TrackerLogic(db_path)
 

@@ -171,7 +171,7 @@ async def test_router_rejects_non_private_chat(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_router_handles_clear_user_state_failure_gracefully(monkeypatch):
+async def test_router_keeps_record_state_for_invalid_input(monkeypatch):
     update = FakeUpdate("I am lost")
     context = FakeContext()
     context.user_data["awaiting"] = "today_count"
@@ -201,7 +201,8 @@ async def test_router_handles_clear_user_state_failure_gracefully(monkeypatch):
 
     await handle_text(update, context)
 
-    assert "I didn't understand that" in update.message.replies[0]
+    assert context.user_data["awaiting"] == "today_count"
+    assert "whole number" in update.message.replies[0]
 
 
 @pytest.mark.asyncio

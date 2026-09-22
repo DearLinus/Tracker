@@ -2,7 +2,6 @@ import asyncio
 import functools
 import logging
 import sqlite3
-from datetime import date
 from zoneinfo import ZoneInfoNotFoundError
 
 from telegram import Update
@@ -26,6 +25,7 @@ from handlers.utils import (
     clear_user_state,
     get_user_id,
     get_user_today,
+    parse_date,
     parse_int,
     reset_state,
     send_sticker_if_available,
@@ -216,7 +216,7 @@ async def save_new_record(
     count_text = parts[1]
 
     try:
-        record_date = date.fromisoformat(date_text)
+        record_date = parse_date(date_text)
 
     except ValueError:
         await update.message.reply_text(
