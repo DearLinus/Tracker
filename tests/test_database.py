@@ -20,6 +20,25 @@ def test_database_tracks_applied_migrations(database):
     assert "001_init_schema" in migrations
     assert "002_add_indexes" in migrations
 
+
+def test_apply_migrations_rolls_back_failed_migration(tmp_path, monkeypatch):
+    db = TrackerDatabase(str(tmp_path / "rollback.db"))
+
+    module = sys.modules["database"]
+    monkeypatch.setattr(
+        module,
+        "MIGRATIONS",
+        [("bad_migration", "CREATE TABLE broken (id INTEGER")],
+    )
+
+    with pytest.raises(sqlite3.Error):
+        with db.connection() as connection:
+            db._apply_migrations(connection)
+
+    applied = db.get_applied_migrations()
+    assert "bad_migration" not in applied
+
+
 def test_backup_database_creates_backup(tmp_path):
     source = tmp_path / "tracker.db"
     backup_dir = tmp_path / "backups"

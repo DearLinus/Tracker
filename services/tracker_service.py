@@ -54,6 +54,12 @@ def get_tracker_from_context(context):
     return tracker
 
 
+def check_rate_limit(context, user_id, operation, **kwargs):
+    """Convenience wrapper that exposes the rate-limit decision through the service layer."""
+    tracker = get_tracker_from_context(context)
+    return tracker.check_rate_limit(user_id, operation, **kwargs)
+
+
 def _tracker_from_bot_data(bot_data):
     if bot_data is None:
         return None

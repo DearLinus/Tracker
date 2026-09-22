@@ -8,6 +8,7 @@ from handlers.utils import (
     get_user_today,
     set_user_state,
     clear_user_state,
+    enforce_rate_limit,
 )
 import asyncio
 import functools
@@ -65,6 +66,13 @@ async def send_graph(
         return
 
     try:
+        if not await enforce_rate_limit(
+            update,
+            context,
+            "graph_generation",
+            message="⏳ Graph generation is rate-limited. Please wait a minute and try again.",
+        ):
+            return
 
         theme = get_graph_theme(update, context)
 

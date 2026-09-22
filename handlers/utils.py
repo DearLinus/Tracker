@@ -14,6 +14,25 @@ from timezone import DEFAULT_TIMEZONE
 
 logger = logging.getLogger(__name__)
 
+
+async def enforce_rate_limit(update: Update, context: ContextTypes.DEFAULT_TYPE, operation: str, *, message: str | None = None):
+    """Shared middleware-style guard for expensive operations.
+
+    Returns True when the request is allowed and False when it is blocked.
+    """
+    user_id = get_user_id(update)
+    tracker = get_tracker(context)
+    checker = getattr(tracker, "check_rate_limit", None)
+
+    if checker is not None and not checker(user_id, operation):
+        await update.message.reply_text(
+            message or "⏳ Too many requests. Please wait a minute and try again."
+        )
+        return False
+
+    return True
+
+
 def get_user_id(update: Update):
     return update.effective_user.id
 

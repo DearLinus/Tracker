@@ -1,10 +1,7 @@
-import os
 import pytest
 
-from handlers.utils import _parse_allowed_user_ids, is_user_allowed
-
 from handlers.start import start
-from handlers.router import handle_text
+from handlers.utils import _parse_allowed_user_ids, is_user_allowed
 
 
 class FakeUser:

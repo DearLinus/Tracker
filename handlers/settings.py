@@ -1,28 +1,24 @@
-from telegram import Update
-from telegram.ext import ContextTypes
-
 import asyncio
 import functools
 
-from keyboards import MAIN_KEYBOARD, SETTINGS_KEYBOARD, CONFIRM_DELETE_KEYBOARD
-from services.tracker_service import get_tracker_from_context as get_tracker
-
-
-from handlers.utils import (
-    get_user_id,
-    reset_state,
-    get_graph_theme,
-    set_user_state,
-    clear_user_state,
-)
+from telegram import Update
+from telegram.ext import ContextTypes
 
 from handlers.constants import (
-    SETTINGS,
+    CONFIRM_DELETE,
     DARK_THEME,
     LIGHT_THEME,
-    DELETE_DATA_BUTTON,
-    CONFIRM_DELETE,
+    SETTINGS,
 )
+from handlers.utils import (
+    clear_user_state,
+    get_graph_theme,
+    get_user_id,
+    reset_state,
+    set_user_state,
+)
+from keyboards import CONFIRM_DELETE_KEYBOARD, MAIN_KEYBOARD, SETTINGS_KEYBOARD
+from services.tracker_service import get_tracker_from_context as get_tracker
 
 
 async def show_settings(
@@ -108,8 +104,6 @@ async def request_delete_data(
 
     This sets a persisted state so the confirmation survives restarts.
     """
-    user_id = get_user_id(update)
-
     reset_state(context)
     # clear persisted state off the event loop
     await asyncio.to_thread(functools.partial(clear_user_state, update, context))

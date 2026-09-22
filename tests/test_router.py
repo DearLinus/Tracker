@@ -1,22 +1,22 @@
 import pytest
 
-from handlers.router import handle_text
 from handlers.constants import (
-    TODAY_RECORD_BUTTON,
     BACK_BUTTON,
-    NEW_RECORD_BUTTON,
-    STATISTICS_BUTTON,
-    HISTORY_BUTTON,
-    SETTINGS_BUTTON,
-    EXPORT_BUTTON,
-    DARK_THEME_BUTTON,
-    LIGHT_THEME_BUTTON,
-    DELETE_DATA_BUTTON,
-    CONFIRM_YES_BUTTON,
     CONFIRM_NO_BUTTON,
+    CONFIRM_YES_BUTTON,
     DARK_THEME,
+    DARK_THEME_BUTTON,
+    DELETE_DATA_BUTTON,
+    EXPORT_BUTTON,
+    HISTORY_BUTTON,
     LIGHT_THEME,
+    LIGHT_THEME_BUTTON,
+    NEW_RECORD_BUTTON,
+    SETTINGS_BUTTON,
+    STATISTICS_BUTTON,
+    TODAY_RECORD_BUTTON,
 )
+from handlers.router import handle_text
 
 
 class FakeUser:
@@ -98,6 +98,108 @@ async def test_router_rejects_unknown_user(monkeypatch):
 # =========================================================
 # today record button
 # =========================================================
+
+
+@pytest.mark.asyncio
+async def test_router_rejects_access_denied_user(monkeypatch):
+    monkeypatch.setenv("ALLOWED_USER_IDS", "999")
+    update = FakeUpdate("anything")
+    context = FakeContext()
+
+    class FakeTracker:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    await handle_text(update, context)
+
+    assert "not authorized" in update.message.replies[0].lower()
+
+
+@pytest.mark.asyncio
+async def test_router_rejects_non_private_chat(monkeypatch):
+    update = FakeUpdate("anything")
+    update.message.chat = type("Chat", (), {"type": "group"})()
+    context = FakeContext()
+
+    class FakeTracker:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    await handle_text(update, context)
+
+    assert "private" in update.message.replies[0].lower()
+
+
+@pytest.mark.asyncio
+async def test_router_handles_clear_user_state_failure_gracefully(monkeypatch):
+    update = FakeUpdate("I am lost")
+    context = FakeContext()
+    context.user_data["awaiting"] = "today_count"
+
+    class FakeTracker:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+
+        @staticmethod
+        def delete_user_state(user_id, key):
+            raise RuntimeError("db failed")
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    await handle_text(update, context)
+
+    assert "I didn't understand that" in update.message.replies[0]
 
 
 @pytest.mark.asyncio
@@ -271,141 +373,19 @@ async def test_back_button_calls_go_back(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
+
         @staticmethod
         def set_user_state(user_id, key, value):
             return None
+
         @staticmethod
         def get_user_state(user_id, key):
             return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
-        @staticmethod
-        def delete_user_state(user_id, key):
-            return None
-        @staticmethod
-        def set_user_state(user_id, key, value):
-            return None
-        @staticmethod
-        def get_user_state(user_id, key):
-            return None
+
         @staticmethod
         def delete_user_state(user_id, key):
             return None

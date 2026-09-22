@@ -1,10 +1,7 @@
 import pytest
 
+from handlers.constants import BACK_BUTTON
 from handlers.router import handle_text
-from handlers.constants import (
-    TODAY_RECORD_BUTTON,
-    BACK_BUTTON,
-)
 
 
 class FakeUser:

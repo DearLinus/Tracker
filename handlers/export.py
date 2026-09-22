@@ -1,15 +1,14 @@
+import asyncio
 import csv
+import functools
 import os
 import tempfile
-import asyncio
-import functools
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from handlers.utils import enforce_rate_limit, get_user_id
 from services.tracker_service import get_tracker_from_context as get_tracker
-
-from handlers.utils import get_user_id
 
 
 def _build_export_file(tracker, user_id):
@@ -46,6 +45,14 @@ async def export_records(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    if not await enforce_rate_limit(
+        update,
+        context,
+        "export_generation",
+        message="⏳ Export generation is rate-limited. Please wait a minute and try again.",
+    ):
+        return
+
     user_id = get_user_id(update)
 
     # Offload fetching records and file creation to a thread
@@ -58,11 +65,16 @@ async def export_records(
         return
 
     try:
-        with open(filename, "rb") as file:
-            await update.message.reply_document(document=file, filename="tracker_history.csv")
+        file_bytes = await asyncio.to_thread(_read_export_bytes, filename)
+        await update.message.reply_document(document=file_bytes, filename="tracker_history.csv")
     finally:
         try:
             if os.path.exists(filename):
                 os.remove(filename)
-        except Exception:
+        except OSError:
             pass
+
+
+def _read_export_bytes(filename):
+    with open(filename, "rb") as file:
+        return file.read()

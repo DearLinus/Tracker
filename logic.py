@@ -18,6 +18,11 @@ COUNT_NEGATIVE_MESSAGE = "count cannot be negative."
 COUNT_TOO_HIGH_MESSAGE = "count cannot exceed 1000."
 FUTURE_DATE_MESSAGE = "Record date cannot be in the future."
 
+DEFAULT_RATE_LIMITS = {
+    "graph_generation": {"limit": 5, "window_seconds": 60},
+    "export_generation": {"limit": 2, "window_seconds": 60},
+}
+
 
 class TrackerLogic:
     """
@@ -280,6 +285,30 @@ class TrackerLogic:
             "average": sum(values) / len(records),
             "highest": max(values),
         }
+
+    # =========================================================
+    # RATE LIMITS
+    # =========================================================
+
+    def check_rate_limit(self, user_id, operation, limit=None, window_seconds=None):
+        self._validate_user_id(user_id)
+
+        config = DEFAULT_RATE_LIMITS.get(operation, {})
+        resolved_limit = config.get("limit") if limit is None else limit
+        resolved_window = config.get("window_seconds") if window_seconds is None else window_seconds
+
+        if resolved_limit is None or resolved_window is None:
+            return True
+
+        if resolved_limit <= 0:
+            return True
+
+        return self.database.check_and_record_rate_limit(
+            user_id,
+            operation,
+            int(resolved_limit),
+            int(resolved_window),
+        )
 
     # =========================================================
     # SETTINGS

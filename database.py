@@ -2,7 +2,6 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import date
 
-
 MIGRATIONS = [
     (
         "001_init_schema",
@@ -102,7 +101,7 @@ def _remove_duplicate_indexes(connection):
             if all(c.lower() in low for c in cols) and name != canonical_name:
                 try:
                     connection.execute(f'DROP INDEX IF EXISTS "{name}"')
-                except Exception:
+                except sqlite3.Error:
                     # best-effort: don't stop the whole migration on a single drop failure
                     pass
 
@@ -128,7 +127,7 @@ def _drop_explicit_redundant_indexes(connection):
     for tbl, (canonical_name, canonical_cols) in canonical.items():
         try:
             idx_list = list(connection.execute(f"PRAGMA index_list('{tbl}')"))
-        except Exception:
+        except sqlite3.Error:
             continue
 
         # Build a map: index_name -> tuple(column names)
@@ -137,7 +136,7 @@ def _drop_explicit_redundant_indexes(connection):
             name = row[1]
             try:
                 info = list(connection.execute(f"PRAGMA index_info('{name}')"))
-            except Exception:
+            except sqlite3.Error:
                 continue
             cols = tuple(r[2] for r in info)
             idx_cols[name] = cols
@@ -157,11 +156,11 @@ def _drop_explicit_redundant_indexes(connection):
                     name = row[1]
                     try:
                         info = list(connection.execute(f"PRAGMA index_info('{name}')"))
-                    except Exception:
+                    except sqlite3.Error:
                         continue
                     cols = tuple(r[2] for r in info)
                     idx_cols[name] = cols
-            except Exception:
+            except sqlite3.Error:
                 pass
 
         # Now drop any explicit idx_* that duplicate the canonical columns but are not the canonical name
@@ -171,12 +170,30 @@ def _drop_explicit_redundant_indexes(connection):
             if name.startswith("idx_") and cols == tuple(canonical_cols):
                 try:
                     connection.execute(f'DROP INDEX IF EXISTS "{name}"')
-                except Exception:
+                except sqlite3.Error:
                     pass
 
 
 # New migration 006: drop explicit indexes redundant with sqlite_autoindex
 MIGRATIONS.append(("006_drop_explicit_indexes_redundant_with_autoindex", _drop_explicit_redundant_indexes))
+
+MIGRATIONS.append(
+    (
+        "007_add_rate_limits",
+        """
+        CREATE TABLE IF NOT EXISTS rate_limits (
+            user_id INTEGER NOT NULL,
+            operation TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            request_count INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(user_id, operation, window_start),
+            FOREIGN KEY(user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
+        );
+        """,
+    )
+)
 
 
 class TrackerDatabase:
@@ -211,7 +228,7 @@ class TrackerDatabase:
         try:
             yield conn
             conn.commit()
-        except Exception:
+        except sqlite3.Error:
             conn.rollback()
             raise
         finally:
@@ -307,11 +324,11 @@ class TrackerDatabase:
                 # commit the migration transaction
                 connection.execute("COMMIT")
 
-            except Exception:
+            except sqlite3.Error:
                 # Rollback this migration so partial changes are not left behind
                 try:
                     connection.execute("ROLLBACK")
-                except Exception:
+                except sqlite3.Error:
                     # If rollback itself fails, log/raise the original error
                     pass
                 raise
@@ -579,5 +596,52 @@ class TrackerDatabase:
                     setting_value,
                 ),
             )
+
+    # =========================================================
+    # RATE LIMITS
+    # =========================================================
+
+    def check_and_record_rate_limit(self, user_id, operation, limit, window_seconds, now=None):
+        """Allow up to `limit` requests in each rolling window for a user/operation.
+
+        SQLite is used as the source of truth. This keeps the implementation simple,
+        predictable, and production-safe without introducing Redis or another external
+        dependency.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        window_start = (now - timedelta(seconds=window_seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        bucket_start = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        with self.connection() as connection:
+            connection.execute(
+                "DELETE FROM rate_limits WHERE user_id = ? AND operation = ? AND window_start < ?",
+                (user_id, operation, window_start),
+            )
+
+            row = connection.execute(
+                "SELECT request_count FROM rate_limits WHERE user_id = ? AND operation = ? AND window_start = ?",
+                (user_id, operation, bucket_start),
+            ).fetchone()
+
+            current_count = 0 if row is None else int(row["request_count"])
+
+            if current_count >= limit:
+                return False
+
+            updated_count = current_count + 1
+            connection.execute(
+                """
+                INSERT INTO rate_limits (user_id, operation, window_start, request_count, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id, operation, window_start)
+                DO UPDATE SET request_count = excluded.request_count, updated_at = CURRENT_TIMESTAMP
+                """,
+                (user_id, operation, bucket_start, updated_count),
+            )
+            return True
 
  
