@@ -567,4 +567,5 @@ All tests should pass before committing changes.
 
 ## License
 
-This project is currently unlicensed.
+This project is licensed under the GNU General Public License v3.0 (GPLv3).
+See the [LICENSE](LICENSE) file for details.

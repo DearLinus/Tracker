@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import sqlite3
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -195,7 +196,7 @@ async def handle_text(
     reset_state(context)
     try:
         await asyncio.to_thread(functools.partial(clear_user_state, update, context))
-    except (AttributeError, RuntimeError, TypeError):
+    except (AttributeError, RuntimeError, TypeError, sqlite3.Error):
         # Be conservative: do not fail on clear_user_state issues
         pass
 

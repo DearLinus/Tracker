@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 
 from handlers.constants import (
@@ -193,7 +195,7 @@ async def test_router_handles_clear_user_state_failure_gracefully(monkeypatch):
 
         @staticmethod
         def delete_user_state(user_id, key):
-            raise RuntimeError("db failed")
+            raise sqlite3.Error("database is locked")
 
     context.bot_data = {"tracker": FakeTracker()}
 
