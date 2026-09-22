@@ -229,9 +229,9 @@ WELCOME_STICKER_ID=
 SUCCESS_STICKER_ID=
 ERROR_STICKER_ID=
 
-# Optional: custom log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-LOG_LEVEL=INFO
-```
+# Logging is currently configured internally by the application.
+# Log level customization can be added in the future.
+
 
 **Security notes:**
 - `TELEGRAM_BOT_TOKEN` is required and validated at startup. Missing or invalid tokens cause immediate startup failure.
@@ -255,7 +255,7 @@ The project is deployment-friendly because:
 
 * All configuration is environment-variable based
 * Database file location is configurable (`DATABASE_PATH`)
-* Logging is configurable by level
+* Logging behavior is centralized and production-friendly
 * No hardcoded paths or secrets
 * Supports running alongside other processes
 
@@ -470,7 +470,7 @@ The project uses a layered, event-driven architecture that cleanly separates Tel
              │
 ┌────────────▼────────────────────────────────┐
 │   database.py                               │
-│   ├─ SQLite connection pool                 │
+│   ├─ SQLite connection                │
 │   ├─ Schema + migrations                    │
 │   ├─ CRUD operations                        │
 │   ├─ Transactional safety                   │
@@ -487,10 +487,10 @@ The project uses a layered, event-driven architecture that cleanly separates Tel
 
 1. **Separation of Concerns**: Telegram logic is isolated from business rules and database access
 2. **Testability**: Each layer can be tested independently; database operations are abstracted
-3. **Type Safety**: Python 3.12+ with type hints (mypy-compatible)
+3. **Type Safety**: Python 3.12+ with type hints for improved readability and maintainability
 4. **Error Handling**: Graceful degradation; user-friendly error messages; detailed internal logging
 5. **State Management**: Persistent conversation state allows resuming flows after restarts
-6. **Scalability**: SQLite supports multi-user concurrency; connection pooling available
+6. **Scalability**: SQLite supports multi-user concurrency through isolated user data and transactional database operations
 7. **Maintainability**: Clear module responsibilities; minimal coupling between layers
 
 ### Module Responsibilities
@@ -799,14 +799,13 @@ All tests must pass and new code should maintain or improve test coverage.
 
 * Sensitive data (tokens, user IDs) is not logged
 * Application errors are logged internally without exposing stack traces to users
-* Configure `LOG_LEVEL` for debug/production scenarios
 * Log files use rotation to prevent unbounded growth
 
 ### Input Validation
 
 * All user input is validated:
   - Numeric fields reject negative values
-  - Dates reject past future dates and unsupported formats
+  - Dates reject unsupported formats and invalid date values
   - Persian/Arabic numerals are normalized automatically
   - Graph parameters are whitelisted
 
