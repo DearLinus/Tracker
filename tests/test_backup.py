@@ -157,3 +157,43 @@ def test_restore_creates_safety_copy(tmp_path):
     rows = conn.execute("SELECT x FROM t ORDER BY id").fetchall()
     conn.close()
     assert ("a",) in rows
+
+
+def test_restore_safety_copy_preserves_wal_committed_data(tmp_path):
+    db = tmp_path / "wal_target.db"
+    conn = sqlite3.connect(db)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, x TEXT)")
+        conn.execute("INSERT INTO t (x) VALUES ('committed-in-wal')")
+        conn.commit()
+    finally:
+        conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    backup_path = backup_database(str(db), str(backup_dir))
+
+    # Simulate a state change before restore. The safety copy must still include
+    # the committed WAL data, not just the base database file on disk.
+    conn = sqlite3.connect(db)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("INSERT INTO t (x) VALUES ('newer-row')")
+        conn.commit()
+    finally:
+        conn.close()
+
+    restore_database(str(db), backup_path)
+
+    safety_file = next(iter(tmp_path.glob("wal_target.db.pre_restore_*.db")), None)
+    assert safety_file is not None
+
+    conn = sqlite3.connect(safety_file)
+    try:
+        rows = conn.execute("SELECT x FROM t ORDER BY id").fetchall()
+    finally:
+        conn.close()
+
+    assert ("committed-in-wal",) in rows
+    assert ("newer-row",) in rows

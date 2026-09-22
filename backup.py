@@ -79,11 +79,13 @@ def restore_database(db_path: str, backup_path: str) -> None:
     os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
 
     # If the target DB exists, create a safety copy before overwriting it.
+    # Use SQLite's backup API instead of a raw file copy so committed WAL data
+    # is also captured in the safety copy.
     if os.path.exists(db_path):
-        from shutil import copy2
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safety_path = f"{db_path}.pre_restore_{timestamp}.db"
-        copy2(db_path, safety_path)
+        with sqlite3.connect(db_path) as source, sqlite3.connect(safety_path) as target:
+            source.backup(target)
 
     # Now perform the actual restore using SQLite's backup API. Open the
     # source in read-only mode and the target normally (writable). Using the

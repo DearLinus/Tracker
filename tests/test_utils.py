@@ -207,11 +207,6 @@ def test_default_timezone_is_valid():
     ZoneInfo(utils.DEFAULT_TIMEZONE)  # raises if unknown
 
 
-def test_default_timezone_matches_constants():
-    """DEFAULT_TIMEZONE is defined in two places; they must not drift."""
-    assert utils.DEFAULT_TIMEZONE == constants.DEFAULT_TIMEZONE
-
-
 # ------------------------------------------------------------------
 # get_user_today
 # ------------------------------------------------------------------

@@ -83,28 +83,12 @@ class MinimalFakeTracker:
         return None
 
     @staticmethod
-    def update_record(user_id, record_date, count):
-        return None
-
-    @staticmethod
     def delete_record(user_id, record_date):
         return None
 
     @staticmethod
     def delete_user(user_id):
         return None
-
-    @staticmethod
-    def get_total(user_id):
-        return 0
-
-    @staticmethod
-    def get_average(user_id):
-        return 0
-
-    @staticmethod
-    def get_highest(user_id):
-        return 0
 
     @staticmethod
     def get_statistics(user_id):

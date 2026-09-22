@@ -110,41 +110,6 @@ class TrackerLogic:
         )
 
 
-    def update_record(
-        self,
-        user_id,
-        record_date,
-        count
-    ):
-
-        self._validate_user_id(user_id)
-
-        self._validate_record_date(
-        user_id,
-        record_date
-        )
-        
-        self._validate_count(count)
-
-        self._require_user(user_id)
-
-        old_record = self.database.get_record(
-            user_id,
-            record_date
-        )
-
-        if old_record is None:
-            raise ValueError(
-                "The record you are trying to edit does not exist."
-            )
-
-        self.database.add_or_update_record(
-            user_id,
-            record_date,
-            count
-        )
-
-
     def delete_record(
         self,
         user_id,
@@ -221,46 +186,6 @@ class TrackerLogic:
     # STATISTICS
     # =========================================================
 
-    def get_total(
-        self,
-        user_id
-    ):
-
-        records = self.get_records(user_id)
-
-        return sum(
-            records.values()
-        )
-
-
-    def get_average(
-        self,
-        user_id
-    ):
-
-        records = self.get_records(user_id)
-
-        if not records:
-            return 0
-
-        return sum(
-            records.values()
-        ) / len(records)
-
-
-    def get_highest(
-        self,
-        user_id
-    ):
-
-        records = self.get_records(user_id)
-
-        if not records:
-            return 0
-
-        return max(
-            records.values()
-        )
     def get_statistics(self, user_id):
 
         records = self.get_records(user_id)

@@ -300,6 +300,8 @@ python -c "from backup import backup_database; print(backup_database('tracker.db
 
 The backup uses SQLite's native backup mechanism, allowing the database to be backed up safely while the bot is running.
 
+When restoring a database backup, stop the bot/service first so no other process is writing to the database while the restore is in progress. This prevents WAL or in-flight writes from being missed or mixed with the restored state.
+
 The resulting backup is timestamped and stored in the specified directory.
 
 For automated backups, the command can be scheduled with tools such as:

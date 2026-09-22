@@ -100,40 +100,6 @@ def test_get_records(tracker):
 
 
 
-def test_update_record(tracker):
-
-    tracker.create_user(1)
-
-    record_date = date(2026, 9, 1)
-
-    tracker.save_record(
-        1,
-        record_date,
-        5
-    )
-
-    tracker.update_record(
-        1,
-        record_date,
-        10
-    )
-
-    assert tracker.get_record(
-        1,
-        record_date
-    ) == 10
-
-
-def test_update_record_rejects_unknown_user(tracker):
-
-    with pytest.raises(ValueError, match="User does not exist"):
-
-        tracker.update_record(
-            999,
-            date(2026, 9, 1),
-            10
-        )
-
 def test_delete_record(tracker):
 
     tracker.create_user(1)
@@ -255,49 +221,6 @@ def test_invalid_user_id(tracker):
 
     with pytest.raises(ValueError):
         tracker.create_user(None)
-
-# =========================================================
-# STATISTICS
-# =========================================================
-
-
-def test_statistics(tracker):
-
-    tracker.create_user(1)
-
-
-    for d,c in [
-        (date(2026,9,1),2),
-        (date(2026,9,2),6),
-        (date(2026,9,3),4)
-    ]:
-        tracker.save_record(
-            1,
-            d,
-            c
-        )
-
-
-    assert tracker.get_total(1)==12
-
-    assert tracker.get_average(1)==4
-
-    assert tracker.get_highest(1)==6
-
-
-
-def test_empty_statistics(tracker):
-
-    tracker.create_user(1)
-
-
-    assert tracker.get_total(1)==0
-
-    assert tracker.get_average(1)==0
-
-    assert tracker.get_highest(1)==0
-
-
 
 # =========================================================
 # SETTINGS
