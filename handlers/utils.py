@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import date, datetime
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 from telegram import Update
@@ -13,7 +14,13 @@ from timezone import DEFAULT_TIMEZONE
 logger = logging.getLogger(__name__)
 
 
-async def enforce_rate_limit(update: Update, context: ContextTypes.DEFAULT_TYPE, operation: str, *, message: str | None = None):
+async def enforce_rate_limit(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    operation: str,
+    *,
+    message: str | None = None,
+):
     """Shared middleware-style guard for expensive operations.
 
     Returns True when the request is allowed and False when it is blocked.
@@ -68,7 +75,7 @@ def clear_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_sticker_if_available(update: Update, sticker_id: str | None):
     """Send a sticker if available. Telegram errors are logged and not propagated.
-    
+
     Sticker failures must never break the main handler flow (e.g., blocking a record save).
     """
     if not sticker_id:
@@ -89,7 +96,6 @@ def get_graph_theme(update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-
 def get_user_timezone(update, context: ContextTypes.DEFAULT_TYPE):
     user_id = get_user_id(update)
 
@@ -100,13 +106,10 @@ def get_user_timezone(update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-
 def get_user_today(update, context: ContextTypes.DEFAULT_TYPE):
     timezone = get_user_timezone(update, context)
 
-    return datetime.now(
-        ZoneInfo(timezone)
-    ).date()
+    return datetime.now(ZoneInfo(timezone)).date()
 
 
 def normalize_digits(text: str) -> str:
@@ -197,31 +200,10 @@ def parse_date(text: str) -> date:
     return parsed
 
 
-_CACHED_ALLOWED_IDS: set | None = None
-_CACHED_ALLOWED_RAW: str | None = None
-
-
-def _parse_allowed_user_ids() -> set[int]:
-    """Parse ALLOWED_USER_IDS env var into a set of ints.
-
-    Format: comma-separated integers, e.g. "123,456".
-    Empty or missing value returns an empty set meaning "no restriction".
-    Malformed entries are ignored unless the variable is configured but resolves
-    to zero valid IDs, in which case the configuration is rejected.
-    """
-    global _CACHED_ALLOWED_IDS, _CACHED_ALLOWED_RAW
-    raw = os.getenv("ALLOWED_USER_IDS")
-
-    if raw is None:
-        _CACHED_ALLOWED_IDS = set()
-        _CACHED_ALLOWED_RAW = None
-        return set()
-
-    raw_value = raw.strip()
-
-    # If cached and the raw env matches previous value, return cached set
-    if _CACHED_ALLOWED_RAW is not None and raw_value == _CACHED_ALLOWED_RAW and _CACHED_ALLOWED_IDS is not None:
-        return set(_CACHED_ALLOWED_IDS)
+@lru_cache(maxsize=32)
+def _parse_allowed_user_ids_cached(raw_value: str) -> frozenset[int]:
+    """Parse a specific ALLOWED_USER_IDS value into a frozenset of ints."""
+    raw_value = raw_value.strip()
 
     if not raw_value:
         raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
@@ -238,9 +220,20 @@ def _parse_allowed_user_ids() -> set[int]:
     if not ids:
         raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
 
-    _CACHED_ALLOWED_IDS = set(ids)
-    _CACHED_ALLOWED_RAW = raw_value
-    return set(ids)
+    return frozenset(ids)
+
+
+def _parse_allowed_user_ids() -> set[int]:
+    """Parse the current ALLOWED_USER_IDS environment value into a set of ints.
+
+    This wrapper keeps the original API for callers and ensures a changed env var
+    gets a fresh parse result without any mutable module-level cache state.
+    """
+    raw = os.getenv("ALLOWED_USER_IDS")
+    if raw is None:
+        return set()
+
+    return set(_parse_allowed_user_ids_cached(raw))
 
 
 def validate_allowed_user_ids() -> set[int]:
@@ -255,10 +248,10 @@ def validate_allowed_user_ids() -> set[int]:
     if not raw.strip():
         raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
 
-    allowed = _parse_allowed_user_ids()
+    allowed = _parse_allowed_user_ids_cached(raw)
     if not allowed:
         raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
-    return allowed
+    return set(allowed)
 
 
 def is_user_allowed(user_id: int) -> bool:
@@ -272,7 +265,7 @@ def is_user_allowed(user_id: int) -> bool:
     if not raw.strip():
         raise ValueError("ALLOWED_USER_IDS is set but contains no valid user IDs.")
 
-    allowed = _parse_allowed_user_ids()
+    allowed = _parse_allowed_user_ids_cached(raw)
     if not allowed:
         return True
     return user_id in allowed

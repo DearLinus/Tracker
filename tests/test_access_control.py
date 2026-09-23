@@ -34,19 +34,30 @@ class FakeContext:
         self.bot_data = {}
 
 
-@pytest.mark.parametrize("env,expected", [
-    (None, set()),
-    ("123, 456", {123, 456}),
-    ("  7 ,8,9  ", {7, 8, 9}),
-    ("bad,10", {10}),
-])
+@pytest.mark.parametrize(
+    "env,expected",
+    [
+        (None, set()),
+        ("123, 456", {123, 456}),
+        ("  7 ,8,9  ", {7, 8, 9}),
+        ("bad,10", {10}),
+    ],
+)
 def test_parse_allowed_user_ids(env, expected, monkeypatch):
     if env is None:
         monkeypatch.delenv("ALLOWED_USER_IDS", raising=False)
     else:
         monkeypatch.setenv("ALLOWED_USER_IDS", env)
 
-    assert _parse_allowed_user_ids() == expected
+    assert set(_parse_allowed_user_ids()) == expected
+
+
+def test_parse_allowed_user_ids_recomputes_for_new_env_value(monkeypatch):
+    monkeypatch.setenv("ALLOWED_USER_IDS", "10,20")
+    assert set(_parse_allowed_user_ids()) == {10, 20}
+
+    monkeypatch.setenv("ALLOWED_USER_IDS", "20,30")
+    assert set(_parse_allowed_user_ids()) == {20, 30}
 
 
 @pytest.mark.parametrize("env", ["", "bad", "bad,not-a-number", " , "])
@@ -100,4 +111,3 @@ async def test_blocked_user_cannot_create_user(monkeypatch):
     await start(update, context)
 
     assert any("not authorized" in r.lower() for r in update.message.replies)
-    

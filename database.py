@@ -155,6 +155,9 @@ def _consolidate_index_cleanup(connection):
 
 
 
+# NOTE: 006 was intentionally left unused. Existing databases already include
+# the 005 consolidation migration and the later 007 rate-limit migration, so we
+# must not renumber 007 or rewrite the historical migration sequence.
 MIGRATIONS.append(("005_consolidate_index_cleanup", _consolidate_index_cleanup))
 
 

@@ -91,8 +91,8 @@ If set with invalid syntax or zero valid IDs, the application fails immediately 
 
 Expensive operations are rate-limited to prevent abuse:
 
-* **Graph generation**: 1 per minute per user
-* **Export**: 1 per minute per user
+* **Graph generation**: 5 per minute per user
+* **Export**: 2 per minute per user
 
 Uses a fixed-window rate limiter tracking requests per operation and user.
 
@@ -354,6 +354,8 @@ Records are uniquely associated with a user and date.
 Database schema changes are managed through a transactional migration system tracked in the `schema_migrations` table.
 
 Applied migrations:
+
+> Historical note: there is an intentional gap between `005` and `007`. The codebase never used a `006` migration, and renumbering `007` would break compatibility with existing databases that already recorded the migration name. The numbering remains intentionally monotonic for historical integrity.
 
 | Migration | Purpose |
 |-----------|---------|

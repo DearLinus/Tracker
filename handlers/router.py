@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from handlers.constants import (
+    ACCESS_DENIED_MESSAGE,
     BACK_BUTTON,
     CONFIRM_DELETE,
     CONFIRM_NO_BUTTON,
@@ -22,6 +23,7 @@ from handlers.constants import (
     LIGHT_THEME_BUTTON,
     NEW_RECORD,
     NEW_RECORD_BUTTON,
+    PRIVATE_CHAT_REQUIRED_MESSAGE,
     SETTINGS,
     SETTINGS_BUTTON,
     STATISTICS_BUTTON,
@@ -45,7 +47,14 @@ from handlers.settings import (
     show_settings,
 )
 from handlers.statistics import show_statistics
-from handlers.utils import clear_user_state, get_user_id, get_user_state, reset_state
+from handlers.utils import (
+    clear_user_state,
+    get_user_id,
+    get_user_state,
+    is_private_chat,
+    is_user_allowed,
+    reset_state,
+)
 from keyboards import MAIN_KEYBOARD
 from services.tracker_service import get_tracker_from_context as get_tracker
 
@@ -67,8 +76,6 @@ async def handle_text(
         )
         return
     # Access control: block early if configured
-    from handlers.constants import ACCESS_DENIED_MESSAGE
-    from handlers.utils import is_user_allowed
     if not is_user_allowed(user_id):
         await update.message.reply_text(
             ACCESS_DENIED_MESSAGE,
@@ -76,8 +83,6 @@ async def handle_text(
         )
         return
     # Private chat enforcement
-    from handlers.constants import PRIVATE_CHAT_REQUIRED_MESSAGE
-    from handlers.utils import is_private_chat
     if not is_private_chat(update):
         await update.message.reply_text(
             PRIVATE_CHAT_REQUIRED_MESSAGE,

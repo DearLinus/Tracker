@@ -333,6 +333,7 @@ async def test_save_new_record_creates_record(monkeypatch):
 
 
     assert saved == [8]
+    assert "awaiting" not in context.user_data
 
 @pytest.mark.asyncio
 async def test_save_new_record_invalid_format():
