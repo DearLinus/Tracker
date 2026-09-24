@@ -351,6 +351,43 @@ def test_migration_encrypts_legacy_text_schema_without_recreating_duplicate_inde
     assert db.get_record(1, date(2026, 9, 1)) == 7
 
 
+@pytest.mark.parametrize(
+    ("key", "value", "expected"),
+    [
+        (Fernet.generate_key().decode(), "plain-text-value", False),
+        (Fernet.generate_key().decode(), "enc:abc123", False),
+    ],
+)
+def test_looks_like_encrypted_handles_plaintext_and_malformed_payloads(monkeypatch, key, value, expected):
+    monkeypatch.setattr("config.ENCRYPTION_KEY", key)
+    assert _looks_like_encrypted(value) is expected
+
+
+def test_looks_like_encrypted_raises_for_invalid_key_configuration(monkeypatch):
+    monkeypatch.setattr("config.ENCRYPTION_KEY", "not-a-valid-fernet-key")
+
+    with pytest.raises(ValueError, match="ENCRYPTION_KEY"):
+        _looks_like_encrypted("enc:payload")
+
+
+def test_looks_like_encrypted_accepts_valid_encrypted_value(monkeypatch):
+    key = Fernet.generate_key().decode()
+    monkeypatch.setattr("config.ENCRYPTION_KEY", key)
+    token = Fernet(key).encrypt(b"42").decode()
+
+    assert _looks_like_encrypted(f"enc:{token}") is True
+
+
+def test_looks_like_encrypted_rejects_wrong_key_but_not_config_error(monkeypatch):
+    valid_key = Fernet.generate_key().decode()
+    wrong_key = Fernet.generate_key().decode()
+    monkeypatch.setattr("config.ENCRYPTION_KEY", valid_key)
+
+    token = Fernet(wrong_key).encrypt(b"42").decode()
+
+    assert _looks_like_encrypted(f"enc:{token}") is False
+
+
 def test_get_record_raises_clear_error_on_bad_key(tmp_path, monkeypatch):
     key = Fernet.generate_key().decode()
     monkeypatch.setattr("config.ENCRYPTION_KEY", key)

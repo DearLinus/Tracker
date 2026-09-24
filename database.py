@@ -33,11 +33,22 @@ def _looks_like_encrypted(value):
         return False
     if not value or not value.startswith("enc:"):
         return False
+
+    # A broken or malformed ENCRYPTION_KEY is a configuration failure, not a
+    # legacy-plaintext value. Surface that explicitly so migrations do not keep
+    # running in a silently misconfigured state.
+    fernet = _get_fernet()
     token = value[4:]
+
     try:
-        _get_fernet().decrypt(token.encode())
-    except (InvalidToken, TypeError, ValueError):
+        fernet.decrypt(token.encode())
+    except InvalidToken:
+        # Valid encrypted payload, but not decryptable with the active key.
+        # This is a legacy/wrong-key case, not a config failure.
         return False
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Encrypted record value is malformed or corrupted.") from exc
+
     return True
 
 
