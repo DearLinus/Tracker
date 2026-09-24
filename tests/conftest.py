@@ -1,15 +1,17 @@
 import logging
 import os
 
+from cryptography.fernet import Fernet
 import pytest
 
-logger = logging.getLogger(__name__)
-
-# Provide a sensible default so importing modules that read config at
-# import-time don't fail in a clean CI environment.
+# Set env before importing config so required startup variables are present in tests.
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
-# Keep a default but tests will normally override this with a temp file.
 os.environ.setdefault("DATABASE_PATH", "test_tracker.db")
+os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
+
+import config
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -39,8 +41,12 @@ def use_temp_database(tmp_path, monkeypatch):
     The fixture is autouse so no test changes are required.
     """
     db_path = str(tmp_path / "test_tracker.db")
-    # Override the env var for the duration of the test run
+    # Override both the process env and the imported config module so any
+    # import-time configuration already loaded in-process sees the same value.
     monkeypatch.setenv("DATABASE_PATH", db_path)
+    monkeypatch.setenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setattr(config, "DATABASE_PATH", db_path, raising=False)
+    monkeypatch.setattr(config, "ENCRYPTION_KEY", os.environ["ENCRYPTION_KEY"], raising=False)
     return db_path
 
 

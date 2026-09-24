@@ -1,11 +1,37 @@
+"""Database backup/restore helpers.
+
+Important: a backup is only useful if the matching ENCRYPTION_KEY is backed up
+separately as well. Otherwise the restored database cannot decrypt record counts.
+"""
+
 import argparse
 import logging
 import os
+import re
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def _prune_old_files(directory: str, pattern: str, retention: int) -> None:
+    """Remove older files with the given timestamped naming pattern beyond the retention count."""
+    try:
+        matches = sorted(
+            [p for p in Path(directory).iterdir() if p.is_file() and re.fullmatch(pattern, p.name)],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return
+
+    for old in matches[retention:]:
+        try:
+            old.unlink()
+        except OSError:
+            logger.warning("Failed to remove old file %s", old)
 
 
 def backup_database(db_path: str, backup_dir: str) -> str:
@@ -27,12 +53,17 @@ def backup_database(db_path: str, backup_dir: str) -> str:
     if os.path.abspath(backup_path) == os.path.abspath(db_path):
         raise ValueError("Backup path cannot be the same as the database path.")
 
+    print(
+        "WARNING: keep ENCRYPTION_KEY backed up separately; otherwise this database backup cannot decrypt record counts.",
+        file=sys.stderr,
+    )
+
     # Use context managers to ensure connections are closed promptly.
     with sqlite3.connect(db_path) as source, sqlite3.connect(backup_path) as backup:
         source.backup(backup)
 
     # Rotation / retention: remove older timestamped backups beyond retention count
-    retention = int(os.getenv("BACKUP_RETENTION", "7"))
+    retention = max(0, int(os.getenv("BACKUP_RETENTION", "7")))
 
     # Use a strict naming convention to identify timestamped backups created
     # by this tool: <stem>_YYYYMMDD_HHMMSS*.db. This avoids accidentally
@@ -40,19 +71,8 @@ def backup_database(db_path: str, backup_dir: str) -> str:
     import re
 
     stem = Path(db_path).stem
-    pattern = re.compile(rf"^{re.escape(stem)}_\d{{8}}_\d{{6}}.*\.db$")
-
-    timestamped_backups = sorted(
-        [p for p in Path(backup_dir).iterdir() if p.is_file() and pattern.match(p.name)],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-
-    for old in timestamped_backups[retention:]:
-        try:
-            old.unlink()
-        except OSError:
-            logger.warning("Failed to remove old backup %s", old)
+    pattern = rf"^{re.escape(stem)}_\d{{8}}_\d{{6}}.*\.db$"
+    _prune_old_files(backup_dir, pattern, retention)
 
     return backup_path
 
@@ -87,6 +107,11 @@ def restore_database(db_path: str, backup_path: str) -> None:
         with sqlite3.connect(db_path) as source, sqlite3.connect(safety_path) as target:
             source.backup(target)
 
+        retention = max(0, int(os.getenv("BACKUP_RETENTION", "7")))
+        target_name = Path(db_path).name
+        pattern = rf"^{re.escape(target_name)}\.pre_restore_\d{{8}}_\d{{6}}.*\.db$"
+        _prune_old_files(os.path.dirname(db_path) or ".", pattern, retention)
+
     # Now perform the actual restore using SQLite's backup API. Open the
     # source in read-only mode and the target normally (writable). Using the
     # context managers ensures connections are closed properly.
@@ -104,6 +129,10 @@ def main(argv=None) -> None:
     args = parser.parse_args(argv)
 
     if args.command == "backup":
+        print(
+            "WARNING: keep ENCRYPTION_KEY backed up separately; otherwise this database backup cannot decrypt record counts.",
+            file=sys.stderr,
+        )
         backup_path = backup_database(args.db_path, args.backup_dir)
         print(f"Backup created: {backup_path}")
         return

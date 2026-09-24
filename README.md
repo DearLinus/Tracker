@@ -224,6 +224,9 @@ ALLOWED_USER_IDS=
 # Optional: custom database file path
 DATABASE_PATH=tracker.db
 
+# Required for record-count encryption. Generate once and keep it secret.
+ENCRYPTION_KEY=your_fernet_key_here
+
 # Optional: Telegram sticker IDs for visual feedback
 WELCOME_STICKER_ID=
 SUCCESS_STICKER_ID=
@@ -235,8 +238,23 @@ ERROR_STICKER_ID=
 
 **Security notes:**
 - `TELEGRAM_BOT_TOKEN` is required and validated at startup. Missing or invalid tokens cause immediate startup failure.
+- `ENCRYPTION_KEY` is required for record-count encryption. Generate a fresh value once, store it in `.env`, and back it up separately from the SQLite database.
 - Never commit `.env` or your bot token to version control.
 - If `ALLOWED_USER_IDS` is set but empty/invalid, the bot will fail fast with a configuration error.
+
+### Generate the encryption key
+
+```bash
+python scripts/generate_encryption_key.py
+```
+
+This prints a fresh Fernet key. Copy it into `.env` as:
+
+```env
+ENCRYPTION_KEY=your_generated_key_here
+```
+
+Store the same key in a secure secret manager or an encrypted backup location; without it, the database backup is not useful because the encrypted `records.count` values cannot be decrypted.
 
 ## Deployment
 

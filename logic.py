@@ -2,7 +2,7 @@ from datetime import date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
-from database import TrackerDatabase
+from database import RecordDecryptionError, TrackerDatabase
 from timezone import DEFAULT_TIMEZONE, get_today
 
 USER_ID_REQUIRED_MESSAGE = "user_id cannot be None."
@@ -13,6 +13,10 @@ COUNT_TYPE_MESSAGE = "count must be an integer."
 COUNT_NEGATIVE_MESSAGE = "count cannot be negative."
 COUNT_TOO_HIGH_MESSAGE = "count cannot exceed 1000."
 FUTURE_DATE_MESSAGE = "Record date cannot be in the future."
+RECORD_DECRYPTION_MESSAGE = (
+    "Stored record data could not be decrypted. "
+    "Please restore the database backup or contact support."
+)
 
 DEFAULT_RATE_LIMITS = {
     "graph_generation": {"limit": 5, "window_seconds": 60},
@@ -162,10 +166,13 @@ class TrackerLogic:
 
         self._require_user(user_id)
 
-        return self.database.get_record(
-            user_id,
-            record_date
-        )
+        try:
+            return self.database.get_record(
+                user_id,
+                record_date
+            )
+        except RecordDecryptionError as exc:
+            raise ValueError(RECORD_DECRYPTION_MESSAGE) from exc
 
 
     def get_records(
@@ -177,9 +184,12 @@ class TrackerLogic:
 
         self._require_user(user_id)
 
-        return self.database.get_records(
-            user_id
-        )
+        try:
+            return self.database.get_records(
+                user_id
+            )
+        except RecordDecryptionError as exc:
+            raise ValueError(RECORD_DECRYPTION_MESSAGE) from exc
 
 
     # =========================================================

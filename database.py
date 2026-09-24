@@ -2,6 +2,67 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import date
 
+from cryptography.fernet import Fernet, InvalidToken
+
+import config
+
+
+class RecordDecryptionError(RuntimeError):
+    """Raised when database record data cannot be decrypted."""
+
+
+def _get_fernet() -> Fernet:
+    key = getattr(config, "ENCRYPTION_KEY", None)
+    if not key:
+        raise ValueError("Missing required environment variable: ENCRYPTION_KEY")
+    try:
+        return Fernet(key.encode())
+    except ValueError as exc:
+        raise ValueError("ENCRYPTION_KEY must be a valid Fernet key.") from exc
+
+
+def _encrypt_count_value(count):
+    if not isinstance(count, int):
+        raise TypeError("count must be an integer before encryption.")
+    token = _get_fernet().encrypt(str(count).encode()).decode()
+    return f"enc:{token}"
+
+
+def _looks_like_encrypted(value):
+    if not isinstance(value, str):
+        return False
+    if not value or not value.startswith("enc:"):
+        return False
+    token = value[4:]
+    try:
+        _get_fernet().decrypt(token.encode())
+    except (InvalidToken, TypeError, ValueError):
+        return False
+    return True
+
+
+def _decrypt_count_value(value):
+    if value is None:
+        raise RecordDecryptionError("Missing encrypted record count.")
+    if isinstance(value, int):
+        raise RecordDecryptionError("Record count is not encrypted.")
+    if not isinstance(value, str):
+        raise RecordDecryptionError("Record count format is invalid.")
+    if not value.startswith("enc:"):
+        raise RecordDecryptionError("Record count is not encrypted.")
+
+    token = value[4:]
+    try:
+        decrypted = _get_fernet().decrypt(token.encode())
+    except (InvalidToken, TypeError, ValueError) as exc:
+        raise RecordDecryptionError("Failed to decrypt record count.") from exc
+
+    try:
+        return int(decrypted.decode())
+    except (TypeError, ValueError) as exc:
+        raise RecordDecryptionError("Decrypted record count is invalid.") from exc
+
+
 MIGRATIONS = [
     (
         "001_init_schema",
@@ -16,7 +77,7 @@ MIGRATIONS = [
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             record_date TEXT NOT NULL,
-            count INTEGER NOT NULL CHECK(count >= 0),
+            count TEXT NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(telegram_id) ON DELETE CASCADE,
             UNIQUE(user_id, record_date)
         );
@@ -180,6 +241,83 @@ MIGRATIONS.append(
 )
 
 
+def _encrypt_record_counts_migration(connection):
+    """Encrypt legacy numeric record counts and remove the old INTEGER CHECK schema."""
+    try:
+        table_info = connection.execute("PRAGMA table_info('records')").fetchall()
+    except sqlite3.Error:
+        return
+
+    if not table_info:
+        return
+
+    count_column = next((col for col in table_info if col[1] == "count"), None)
+    if count_column is None:
+        return
+
+    existing_rows = connection.execute(
+        "SELECT id, user_id, record_date, count FROM records ORDER BY id"
+    ).fetchall()
+
+    needs_schema_rebuild = False
+    if count_column[2] != "TEXT":
+        needs_schema_rebuild = True
+
+    if not needs_schema_rebuild:
+        for row in existing_rows:
+            raw = row["count"]
+            if _looks_like_encrypted(raw):
+                continue
+            if raw is None:
+                continue
+            if isinstance(raw, int):
+                encrypted = _encrypt_count_value(raw)
+            else:
+                encrypted = _encrypt_count_value(int(str(raw)))
+            connection.execute(
+                "UPDATE records SET count = ? WHERE id = ?",
+                (encrypted, row["id"]),
+            )
+        return
+
+    connection.execute("DROP INDEX IF EXISTS idx_records_user_date")
+    connection.execute("ALTER TABLE records RENAME TO records_legacy")
+    connection.execute(
+        """
+        CREATE TABLE records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            record_date TEXT NOT NULL,
+            count TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(telegram_id) ON DELETE CASCADE,
+            UNIQUE(user_id, record_date)
+        )
+        """
+    )
+
+    for row in existing_rows:
+        raw = row["count"]
+        if _looks_like_encrypted(raw):
+            encrypted = raw
+        elif raw is None:
+            encrypted = ""
+        else:
+            encrypted = _encrypt_count_value(int(raw))
+
+        connection.execute(
+            "INSERT INTO records (id, user_id, record_date, count) VALUES (?, ?, ?, ?)",
+            (row["id"], row["user_id"], row["record_date"], encrypted),
+        )
+
+    connection.execute("DROP TABLE records_legacy")
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_records_user_date ON records(user_id, record_date)"
+    )
+
+
+MIGRATIONS.append(("008_encrypt_record_counts", _encrypt_record_counts_migration))
+
+
 class TrackerDatabase:
     """
     SQLite database layer for multi-user tracker.
@@ -341,13 +479,14 @@ class TrackerDatabase:
     # =========================================================
 
     def add_or_update_record(self, user_id, record_date, count):
+        encrypted_count = _encrypt_count_value(count)
         with self.connection() as connection:
             connection.execute(
                 "INSERT INTO records (user_id, record_date, count)"
                 " VALUES (?, ?, ?)"
                 " ON CONFLICT(user_id, record_date)"
                 " DO UPDATE SET count = excluded.count",
-                (user_id, record_date.isoformat(), count),
+                (user_id, record_date.isoformat(), encrypted_count),
             )
 
     def add_or_update_record_require_user(self, user_id, record_date, count):
@@ -357,6 +496,7 @@ class TrackerDatabase:
         when callers would otherwise check existence then write.
         Raises ValueError if the user does not exist.
         """
+        encrypted_count = _encrypt_count_value(count)
         with self.connection() as connection:
             cursor = connection.execute(
                 "SELECT 1 FROM users WHERE telegram_id = ? LIMIT 1",
@@ -371,7 +511,7 @@ class TrackerDatabase:
                 " VALUES (?, ?, ?)"
                 " ON CONFLICT(user_id, record_date)"
                 " DO UPDATE SET count = excluded.count",
-                (user_id, record_date.isoformat(), count),
+                (user_id, record_date.isoformat(), encrypted_count),
             )
 
     def get_record(self, user_id, record_date):
@@ -382,7 +522,9 @@ class TrackerDatabase:
                 (user_id, record_date.isoformat()),
             )
             row = cursor.fetchone()
-            return None if row is None else row["count"]
+            if row is None:
+                return None
+            return _decrypt_count_value(row["count"])
 
     def get_records(self, user_id):
         with self.connection() as connection:
@@ -394,7 +536,7 @@ class TrackerDatabase:
             )
             records = {}
             for row in cursor.fetchall():
-                records[date.fromisoformat(row["record_date"])] = row["count"]
+                records[date.fromisoformat(row["record_date"])] = _decrypt_count_value(row["count"])
             return records
 
     def delete_record(self, user_id, record_date):

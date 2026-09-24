@@ -3,10 +3,11 @@ import sys
 from datetime import date
 
 import pytest
+from cryptography.fernet import Fernet
 
 from backup import backup_database, restore_database
 from backup import main as backup_main
-from database import TrackerDatabase
+from database import RecordDecryptionError, TrackerDatabase
 
 
 @pytest.fixture
@@ -238,6 +239,72 @@ def test_add_or_update_record_isolated_between_users(database):
 
     assert database.get_record(1, day) == 5
     assert database.get_record(2, day) == 20
+
+
+def test_count_is_encrypted_on_disk(tmp_path, monkeypatch):
+    monkeypatch.setattr("config.ENCRYPTION_KEY", Fernet.generate_key().decode())
+    db = TrackerDatabase(str(tmp_path / "encrypted.db"))
+    db.create_user(1)
+    db.add_or_update_record(1, date(2026, 9, 1), 5)
+
+    with sqlite3.connect(str(tmp_path / "encrypted.db")) as conn:
+        raw = conn.execute("SELECT count FROM records WHERE user_id = 1").fetchone()[0]
+
+    assert raw != 5
+    assert isinstance(raw, str)
+    assert raw.startswith("enc:")
+
+
+def test_round_trip_count_round_trips_after_encryption(tmp_path, monkeypatch):
+    monkeypatch.setattr("config.ENCRYPTION_KEY", Fernet.generate_key().decode())
+    db = TrackerDatabase(str(tmp_path / "roundtrip.db"))
+    db.create_user(1)
+    db.add_or_update_record(1, date(2026, 9, 1), 42)
+
+    assert db.get_record(1, date(2026, 9, 1)) == 42
+
+
+def test_migration_encrypts_plaintext_records(tmp_path, monkeypatch):
+    monkeypatch.setattr("config.ENCRYPTION_KEY", Fernet.generate_key().decode())
+    db_path = tmp_path / "migrated.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE records (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, record_date TEXT NOT NULL, count INTEGER NOT NULL CHECK(count >= 0), UNIQUE(user_id, record_date))"
+        )
+        conn.execute(
+            "CREATE TABLE users (telegram_id INTEGER PRIMARY KEY)"
+        )
+        conn.execute("INSERT INTO users (telegram_id) VALUES (1)")
+        conn.execute(
+            "INSERT INTO records (user_id, record_date, count) VALUES (?, ?, ?)",
+            (1, "2026-09-01", 7),
+        )
+        conn.execute(
+            "CREATE TABLE schema_migrations (migration_name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+        )
+        conn.commit()
+
+    db = TrackerDatabase(str(db_path))
+    with sqlite3.connect(db_path) as conn:
+        raw = conn.execute("SELECT count FROM records WHERE user_id = 1").fetchone()[0]
+
+    assert raw != 7
+    assert isinstance(raw, str)
+    assert raw.startswith("enc:")
+    assert db.get_record(1, date(2026, 9, 1)) == 7
+
+
+def test_get_record_raises_clear_error_on_bad_key(tmp_path, monkeypatch):
+    key = Fernet.generate_key().decode()
+    monkeypatch.setattr("config.ENCRYPTION_KEY", key)
+    db = TrackerDatabase(str(tmp_path / "bad_key.db"))
+    db.create_user(1)
+    db.add_or_update_record(1, date(2026, 9, 1), 9)
+
+    monkeypatch.setattr("config.ENCRYPTION_KEY", Fernet.generate_key().decode())
+
+    with pytest.raises(RecordDecryptionError):
+        db.get_record(1, date(2026, 9, 1))
 
 
 def test_callable_migration_rollback_cleans_up_partial_changes(tmp_path, monkeypatch):

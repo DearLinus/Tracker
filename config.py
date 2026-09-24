@@ -23,6 +23,7 @@ def get_env_value(name: str, *, required: bool = False, default: str | None = No
 
 
 DATABASE_PATH = get_env_value("DATABASE_PATH", default="tracker.db")
+ENCRYPTION_KEY = get_env_value("ENCRYPTION_KEY", required=True)
 # Required at startup: running the bot without a token should fail immediately.
 TELEGRAM_BOT_TOKEN = get_env_value("TELEGRAM_BOT_TOKEN", required=True)
 WELCOME_STICKER_ID = get_env_value("WELCOME_STICKER_ID")
