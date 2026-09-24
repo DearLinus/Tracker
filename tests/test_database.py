@@ -7,7 +7,7 @@ from cryptography.fernet import Fernet
 
 from backup import backup_database, restore_database
 from backup import main as backup_main
-from database import RecordDecryptionError, TrackerDatabase
+from database import RecordDecryptionError, TrackerDatabase, _looks_like_encrypted
 
 
 @pytest.fixture
