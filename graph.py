@@ -97,13 +97,14 @@ def create_graph(
     # Axis limits
     # -------------------------------
 
-    # X: small margin on the left, small margin on the right of the last record
-    span = latest_x - x_num[0]
+    # X: span the full requested window through today; missing days remain NaN
+    # rather than dropping out of the axis entirely.
+    span = mdates.date2num(today) - x_num[0]
     pad_left = max(0.5, span * 0.02)
     pad_right = 0.5
 
     x_min = x_num[0] - pad_left
-    x_max = latest_x + pad_right
+    x_max = mdates.date2num(today) + pad_right
 
     # Y
     valid_counts = [c for c in counts if not math.isnan(c)]
@@ -178,8 +179,10 @@ def create_graph(
     # -------------------------------
 
     if len(dates) <= 30:
-        # ticks only up to the latest record so the axis is not stretched
-        ax.set_xticks([x for x in x_num if x <= latest_x])
+        # Keep the entire requested time window visible, including dates with no
+        # records; those remain gaps in the plotted line instead of disappearing
+        # from the x-axis.
+        ax.set_xticks(x_num)
     else:
         ax.xaxis.set_major_locator(
             mdates.AutoDateLocator(minticks=5, maxticks=12)
@@ -216,6 +219,7 @@ def create_graph(
     # Apply limits (AFTER ticks are set)
     # -------------------------------
 
+    ax.autoscale(False)
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
 

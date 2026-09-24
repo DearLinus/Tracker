@@ -204,7 +204,7 @@ async def test_delete_data_flow(monkeypatch):
     # Request delete sets confirmation state and sends confirmation message
     await request_delete_data(update, context)
     assert context.user_data.get("awaiting") == "confirm_delete"
-    assert "This will permanently delete" in update.message.replies[0]
+    assert "7 days" in update.message.replies[0]
 
     # Confirm deletion
     update2 = FakeUpdate()
@@ -212,7 +212,7 @@ async def test_delete_data_flow(monkeypatch):
     context2.bot_data = {"tracker": FakeTracker()}
 
     await confirm_delete_data(update2, context2, True)
-    assert "Your data has been deleted" in update2.message.replies[0]
+    assert "scheduled for deletion" in update2.message.replies[0].lower()
 
 
 @pytest.mark.asyncio

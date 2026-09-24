@@ -61,9 +61,9 @@ async def start_today_record(
 ):
     reset_state(context)
     # persist and mirror the new awaiting state
-    set_user_state(update, context, TODAY_COUNT)
+    await asyncio.to_thread(functools.partial(set_user_state, update, context, TODAY_COUNT))
 
-    today_date = get_user_today(update, context)
+    today_date = await asyncio.to_thread(functools.partial(get_user_today, update, context))
     user_id = get_user_id(update)
 
     try:
@@ -116,7 +116,7 @@ async def save_today_record(
         )
         return
 
-    today_date = get_user_today(update, context)
+    today_date = await asyncio.to_thread(functools.partial(get_user_today, update, context))
 
     try:
         # save_record is an upsert: it creates the record
@@ -210,7 +210,7 @@ async def start_new_record(
 ):
     reset_state(context)
 
-    set_user_state(update, context, NEW_RECORD)
+    await asyncio.to_thread(functools.partial(set_user_state, update, context, NEW_RECORD))
 
     await update.message.reply_text(
         "➕ New Record\n\n"

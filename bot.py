@@ -137,6 +137,9 @@ def main():
     from services import tracker_service
     tracker_service.setup_application(app)
 
+    from services.cleanup_service import schedule_cleanup_jobs
+    schedule_cleanup_jobs(app)
+
     register_handlers(app)
 
     app.add_handler(

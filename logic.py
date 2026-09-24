@@ -1,8 +1,10 @@
-from datetime import date
+import sqlite3
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
 from database import TrackerDatabase
+from services.recovery_storage import RecoveryStorage
 from timezone import DEFAULT_TIMEZONE, get_today
 
 USER_ID_REQUIRED_MESSAGE = "user_id cannot be None."
@@ -38,6 +40,7 @@ class TrackerLogic:
         # and avoids scattering os.getenv throughout business logic.
         resolved_path = db_path or config.DATABASE_PATH
         self.database = TrackerDatabase(resolved_path)
+        self.recovery_storage = RecoveryStorage(resolved_path)
 
 
     # =========================================================
@@ -97,6 +100,8 @@ class TrackerLogic:
     ) -> None:
 
         self._validate_user_id(user_id)
+        self._require_user(user_id)
+        self._require_active_user(user_id)
 
         self._validate_record_date(
         user_id,
@@ -124,6 +129,7 @@ class TrackerLogic:
         self._validate_date(record_date)
 
         self._require_user(user_id)
+        self._require_active_user(user_id)
 
         deleted = self.database.delete_record(
             user_id,
@@ -154,6 +160,70 @@ class TrackerLogic:
 
         return True
 
+    def request_pending_deletion(self, user_id: int, *, now: datetime | None = None) -> dict[str, str | None]:
+        self._validate_user_id(user_id)
+        self._require_user(user_id)
+
+        now_value = datetime.now(timezone.utc) if now is None else now.astimezone(timezone.utc)
+        expires_at = (now_value + timedelta(days=7)).isoformat()
+
+        snapshot = self.database.build_recovery_snapshot(user_id)
+        self.recovery_storage.save_snapshot(user_id, snapshot)
+        if not self.recovery_storage.exists(user_id):
+            raise RuntimeError(f"Recovery snapshot was not created for user {user_id}.")
+
+        with self.database.connection() as connection:
+            connection.execute(
+                "INSERT INTO user_deletions (user_id, status, deletion_requested_at, deletion_expires_at)"
+                " VALUES (?, 'pending', ?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET"
+                " status = excluded.status, deletion_requested_at = excluded.deletion_requested_at,"
+                " deletion_expires_at = excluded.deletion_expires_at, updated_at = CURRENT_TIMESTAMP",
+                (user_id, now_value.isoformat(), expires_at),
+            )
+
+        return {"status": "pending", "requested_at": now_value.isoformat(), "expires_at": expires_at}
+
+    def restore_pending_deletion(self, user_id: int, *, now: datetime | None = None) -> bool:
+        self._validate_user_id(user_id)
+        now_value = datetime.now(timezone.utc) if now is None else now.astimezone(timezone.utc)
+
+        row = self.database.get_pending_deletion(user_id)
+        if row is None:
+            return False
+
+        expires_at = datetime.fromisoformat(row["deletion_expires_at"])
+        if now_value >= expires_at:
+            return False
+
+        snapshot = self.recovery_storage.load_snapshot(user_id)
+        self.database.restore_user_snapshot(user_id, snapshot)
+        self.database.clear_pending_deletion(user_id)
+        self.recovery_storage.delete_snapshot(user_id)
+        return True
+
+    def get_pending_deletion(self, user_id: int) -> dict[str, str] | None:
+        self._validate_user_id(user_id)
+        return self.database.get_pending_deletion(user_id)
+
+    def cleanup_expired_deletions(self, *, now: datetime | None = None) -> list[int]:
+        now_value = datetime.now(timezone.utc) if now is None else now.astimezone(timezone.utc)
+        due_ids = self.database.list_due_pending_deletions(now_value)
+
+        for user_id in due_ids:
+            try:
+                self.database.purge_user_data(user_id)
+            except sqlite3.Error:
+                continue
+            self.recovery_storage.delete_snapshot(user_id)
+        return due_ids
+
+    def get_pending_deletion_deadline(self, user_id: int) -> datetime | None:
+        record = self.get_pending_deletion(user_id)
+        if record is None:
+            return None
+        return datetime.fromisoformat(record["deletion_expires_at"]).astimezone(timezone.utc)
+
 
     def get_record(
         self,
@@ -165,6 +235,7 @@ class TrackerLogic:
         self._validate_date(record_date)
 
         self._require_user(user_id)
+        self._require_active_user(user_id)
 
         return self.database.get_record(
             user_id,
@@ -180,6 +251,7 @@ class TrackerLogic:
         self._validate_user_id(user_id)
 
         self._require_user(user_id)
+        self._require_active_user(user_id)
 
         return self.database.get_records(
             user_id
@@ -277,6 +349,7 @@ class TrackerLogic:
 
         self._validate_user_id(user_id)
         self._require_user(user_id)
+        self._require_active_user(user_id)
 
         self.database.set_setting(
             user_id,
@@ -339,6 +412,7 @@ class TrackerLogic:
     def set_user_state(self, user_id: int, state_key: str, state_value: object) -> None:
         self._validate_user_id(user_id)
         self._require_user(user_id)
+        self._require_active_user(user_id)
         self.database.set_user_state(user_id, state_key, state_value)
 
     def get_user_state(self, user_id: int, state_key: str) -> object | None:
@@ -385,4 +459,14 @@ class TrackerLogic:
         if not self.user_exists(user_id):
             raise ValueError(
                 "User does not exist."
+            )
+
+    def _require_active_user(
+        self,
+        user_id: int,
+    ) -> None:
+
+        if self.get_pending_deletion(user_id) is not None:
+            raise ValueError(
+                "User account is pending deletion and cannot perform normal actions until restored."
             )

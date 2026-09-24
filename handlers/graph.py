@@ -47,7 +47,7 @@ async def show_graph_menu(
 ):
 
     reset_state(context)
-    set_user_state(update, context, GRAPH_TIMELINE)
+    await asyncio.to_thread(functools.partial(set_user_state, update, context, GRAPH_TIMELINE))
 
     await update.message.reply_text(
         "📈 Masturbation Trend\n\n"
@@ -81,7 +81,8 @@ async def send_graph(
         ):
             return
 
-        theme = get_graph_theme(update, context)
+        theme = await asyncio.to_thread(functools.partial(get_graph_theme, update, context))
+        today = await asyncio.to_thread(functools.partial(get_user_today, update, context))
 
         # Offload graph generation to a thread to avoid blocking the event loop.
         try:
@@ -92,7 +93,7 @@ async def send_graph(
                     user_id=get_user_id(update),
                     timeline=timeline_name,
                     theme=theme,
-                    today=get_user_today(update, context),
+                    today=today,
                 )
             )
         except RecordDecryptionError:

@@ -11,6 +11,7 @@ SETTINGS_BUTTON = "⚙ Settings"
 BACK_BUTTON = "⬅️ Back"
 EXPORT_BUTTON = "📤 Export All History"
 DELETE_DATA_BUTTON = "🗑️ Delete My Data"
+RESTORE_DATA_BUTTON = "↩️ Restore My Data"
 CONFIRM_YES_BUTTON = "✅ Yes"
 CONFIRM_NO_BUTTON = "❌ No"
 
@@ -123,6 +124,15 @@ INVALID_FORMAT_MESSAGE = (
 )
 
 COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE = "⚠️ Count must be a whole number."
+PENDING_DELETION_MESSAGE = (
+    "⏳ Your account is scheduled for permanent deletion.\n\n"
+    "You still have 7 days to restore it.\n"
+    "After that, the active database data is permanently removed and the recovery snapshot is deleted.\n"
+    "Historical backups follow BACKUP_RETENTION and are not removed per user."
+)
+PENDING_DELETION_RESTORE_MESSAGE = (
+    "✅ Your data has been restored and your account is active again."
+)
 
 # Access control
 ACCESS_DENIED_MESSAGE = (

@@ -23,7 +23,9 @@ from handlers.constants import (
     LIGHT_THEME_BUTTON,
     NEW_RECORD,
     NEW_RECORD_BUTTON,
+    PENDING_DELETION_MESSAGE,
     PRIVATE_CHAT_REQUIRED_MESSAGE,
+    RESTORE_DATA_BUTTON,
     SETTINGS,
     SETTINGS_BUTTON,
     STATISTICS_BUTTON,
@@ -44,6 +46,7 @@ from handlers.settings import (
     change_graph_theme,
     confirm_delete_data,
     request_delete_data,
+    restore_delete_data,
     show_settings,
 )
 from handlers.statistics import show_statistics
@@ -87,11 +90,23 @@ async def handle_text(
         )
         return
 
-    if not get_tracker(context).user_exists(user_id):
+    if not await asyncio.to_thread(functools.partial(get_tracker(context).user_exists, user_id)):
         await update.message.reply_text("👋 Please start the bot first using /start")
         return
 
     text = update.message.text.strip()
+    tracker = get_tracker(context)
+    pending_checker = getattr(tracker, "get_pending_deletion", None)
+    pending_record = None
+    if callable(pending_checker):
+        pending_record = await asyncio.to_thread(functools.partial(pending_checker, user_id))
+    if isinstance(pending_record, dict) and text not in {BACK_BUTTON, RESTORE_DATA_BUTTON}:
+        await update.message.reply_text(
+            PENDING_DELETION_MESSAGE,
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+
     awaiting = context.user_data.get("awaiting")
 
     # If there's no in-memory state, try to read persisted state (after restart)
@@ -142,6 +157,10 @@ async def handle_text(
         await export_records(update, context)
         return
 
+    if text == RESTORE_DATA_BUTTON:
+        await restore_delete_data(update, context)
+        return
+
     # =====================================================
     # STATES
     # =====================================================
@@ -161,6 +180,9 @@ async def handle_text(
             return
         if text == DELETE_DATA_BUTTON:
             await request_delete_data(update, context)
+            return
+        if text == RESTORE_DATA_BUTTON:
+            await restore_delete_data(update, context)
             return
 
     elif awaiting == CONFIRM_DELETE:

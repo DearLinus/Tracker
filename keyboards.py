@@ -13,6 +13,7 @@ from handlers.constants import (
     MONTHLY_BUTTON,
     NEW_RECORD_BUTTON,
     ONE_YEAR_BUTTON,
+    RESTORE_DATA_BUTTON,
     SETTINGS_BUTTON,
     SIX_MONTHS_BUTTON,
     STATISTICS_BUTTON,
@@ -98,6 +99,18 @@ SETTINGS_KEYBOARD = ReplyKeyboardMarkup(
         ],
         [
             DELETE_DATA_BUTTON,
+        ],
+        [
+            BACK_BUTTON,
+        ],
+    ],
+    resize_keyboard=True,
+)
+
+PENDING_DELETE_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        [
+            RESTORE_DATA_BUTTON,
         ],
         [
             BACK_BUTTON,

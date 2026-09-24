@@ -45,7 +45,7 @@ async def show_history(
         "📜 Last 7 Days\n"
     ]
 
-    today = get_user_today(update, context)
+    today = await asyncio.to_thread(functools.partial(get_user_today, update, context))
 
     has_record = False
 

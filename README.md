@@ -33,7 +33,15 @@ Users can export their complete recorded history as a CSV file directly from the
 
 ### 🗑️ Delete My Data
 
-Users can permanently delete their own data through the Settings menu.
+Users can start a self-service deletion flow from the Settings menu.
+
+This process uses a simple recovery model:
+
+* The user's data enters a 7-day recovery window.
+* The user can restore their account during that period.
+* After 7 days, the active database records are permanently removed.
+* The external recovery snapshot is also deleted at that point.
+* Historical database backups continue to follow the configured `BACKUP_RETENTION` policy; they are not selectively scrubbed per user.
 
 Deletion requires an explicit confirmation step before it is performed.
 
@@ -534,9 +542,15 @@ Schedule regular backups using:
 
 ### Backup Retention
 
-Backup files are automatically timestamped. Implement retention by:
-- Removing backups older than N days: `find backups -name "*.db" -mtime +30 -delete`
-- Keeping only the last N backups: Manual cleanup or script
+Backup files are automatically timestamped and rotated by the configured `BACKUP_RETENTION` value.
+
+The backup policy is intentionally simple:
+
+* `BACKUP_RETENTION = 0` disables backup creation and raises an error instead of creating a backup file.
+* Positive values keep only the newest N timestamped backup files.
+* Older files are removed automatically by the backup rotation logic.
+* This retention policy applies to historical backup files only.
+* User deletion does not trigger per-user backup scrubbing; it only removes active database data and the external recovery snapshot after the 7-day recovery window expires.
 
 ## Architecture
 

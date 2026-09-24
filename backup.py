@@ -10,10 +10,16 @@ import os
 import re
 import sqlite3
 import sys
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def _get_retention() -> int:
+    """Return the configured retention count, treating negatives as zero."""
+    return max(0, int(os.getenv("BACKUP_RETENTION", "7")))
 
 
 def _prune_old_files(directory: str, pattern: str, retention: int) -> None:
@@ -37,6 +43,13 @@ def _prune_old_files(directory: str, pattern: str, retention: int) -> None:
 def backup_database(db_path: str, backup_dir: str) -> str:
     db_path = os.path.abspath(db_path)
     backup_dir = os.path.abspath(backup_dir)
+    retention = _get_retention()
+
+    # A retention value of zero means "keep no backups". Reject the operation
+    # before creating a file so the caller never receives a path to a file that is
+    # immediately pruned away.
+    if retention == 0:
+        raise ValueError("BACKUP_RETENTION=0 disables backup creation; set it to a positive integer to keep backups.")
 
     if os.path.abspath(backup_dir) == os.path.abspath(db_path):
         raise ValueError("Backup directory cannot be the same as the database file path.")
@@ -58,12 +71,14 @@ def backup_database(db_path: str, backup_dir: str) -> str:
         file=sys.stderr,
     )
 
-    # Use context managers to ensure connections are closed promptly.
-    with sqlite3.connect(db_path) as source, sqlite3.connect(backup_path) as backup:
+    # Use closing() so the SQLite connections are explicitly closed when the
+    # backup operation finishes, instead of relying on the connection object to
+    # be finalized later by Python's garbage collection.
+    with closing(sqlite3.connect(db_path)) as source, closing(sqlite3.connect(backup_path)) as backup:
         source.backup(backup)
 
     # Rotation / retention: remove older timestamped backups beyond retention count
-    retention = max(0, int(os.getenv("BACKUP_RETENTION", "7")))
+    retention = _get_retention()
 
     # Use a strict naming convention to identify timestamped backups created
     # by this tool: <stem>_YYYYMMDD_HHMMSS*.db. This avoids accidentally
@@ -78,14 +93,19 @@ def backup_database(db_path: str, backup_dir: str) -> str:
 
 
 def restore_database(db_path: str, backup_path: str) -> None:
+    retention = _get_retention()
+    if retention == 0:
+        raise ValueError("BACKUP_RETENTION=0 disables automatic safety copies; set it to a positive integer to keep backups.")
+
     # Ensure backup file exists before doing anything that could create DB file
     if not os.path.exists(backup_path):
         raise FileNotFoundError(f"Backup file not found: {backup_path}")
 
-    # Validate the backup by opening it read-only and running PRAGMA integrity_check
+    # Validate the backup by opening it read-only and running PRAGMA integrity_check.
+    # Use closing() so the read-only connection is explicitly closed after validation.
     uri = f"file:{os.path.abspath(backup_path)}?mode=ro"
     try:
-        with sqlite3.connect(uri, uri=True) as src_ro:
+        with closing(sqlite3.connect(uri, uri=True)) as src_ro:
             cur = src_ro.execute("PRAGMA integrity_check;")
             row = cur.fetchone()
             if row is None or row[0] != "ok":
@@ -104,19 +124,19 @@ def restore_database(db_path: str, backup_path: str) -> None:
     if os.path.exists(db_path):
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safety_path = f"{db_path}.pre_restore_{timestamp}.db"
-        with sqlite3.connect(db_path) as source, sqlite3.connect(safety_path) as target:
+        with closing(sqlite3.connect(db_path)) as source, closing(sqlite3.connect(safety_path)) as target:
             source.backup(target)
 
-        retention = max(0, int(os.getenv("BACKUP_RETENTION", "7")))
+        retention = _get_retention()
         target_name = Path(db_path).name
         pattern = rf"^{re.escape(target_name)}\.pre_restore_\d{{8}}_\d{{6}}.*\.db$"
         _prune_old_files(os.path.dirname(db_path) or ".", pattern, retention)
 
     # Now perform the actual restore using SQLite's backup API. Open the
-    # source in read-only mode and the target normally (writable). Using the
-    # context managers ensures connections are closed properly.
+    # source in read-only mode and the target normally (writable). Use closing()
+    # so both connections are explicitly closed after the backup completes.
     src_uri = f"file:{os.path.abspath(backup_path)}?mode=ro"
-    with sqlite3.connect(src_uri, uri=True) as source, sqlite3.connect(db_path) as target:
+    with closing(sqlite3.connect(src_uri, uri=True)) as source, closing(sqlite3.connect(db_path)) as target:
         source.backup(target)
 
 

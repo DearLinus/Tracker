@@ -53,6 +53,49 @@ class FakeContext:
 # =========================================================
 
 
+@pytest.mark.asyncio
+async def test_router_offloads_user_exists_to_thread(monkeypatch):
+    update = FakeUpdate("anything")
+    context = FakeContext()
+
+    called = {"threaded": False}
+
+    class FakeTracker:
+        @staticmethod
+        def user_exists(user_id):
+            return True
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": FakeTracker()}
+
+    async def fake_to_thread(func, *args, **kwargs):
+        called["threaded"] = True
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr("handlers.router.asyncio.to_thread", fake_to_thread)
+    monkeypatch.setattr("handlers.router.is_private_chat", lambda update: True)
+    monkeypatch.setattr("handlers.router.is_user_allowed", lambda user_id: True)
+
+    await handle_text(update, context)
+
+    assert called["threaded"] is True
+
+
 @pytest.mark.parametrize(
     ("allowed", "exists", "expected_text"),
     [

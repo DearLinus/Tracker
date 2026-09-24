@@ -1,6 +1,7 @@
+import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, datetime, timezone
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -72,6 +73,12 @@ def _decrypt_count_value(value):
         return int(decrypted.decode())
     except (TypeError, ValueError) as exc:
         raise RecordDecryptionError("Decrypted record count is invalid.") from exc
+
+
+def _restore_count_value(value):
+    if isinstance(value, str) and value.startswith("enc:"):
+        return _decrypt_count_value(value)
+    return int(value)
 
 
 MIGRATIONS = [
@@ -251,7 +258,6 @@ MIGRATIONS.append(
     )
 )
 
-
 def _encrypt_record_counts_migration(connection):
     """Encrypt legacy numeric record counts and remove the old INTEGER CHECK schema."""
     try:
@@ -328,6 +334,31 @@ def _encrypt_record_counts_migration(connection):
 
 
 MIGRATIONS.append(("008_encrypt_record_counts", _encrypt_record_counts_migration))
+
+MIGRATIONS.append(
+    (
+        "009_pending_deletion",
+        """
+        CREATE TABLE IF NOT EXISTS user_deletions (
+            user_id INTEGER PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'pending',
+            deletion_requested_at TEXT NOT NULL,
+            deletion_expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS user_recovery_data (
+            user_id INTEGER PRIMARY KEY,
+            snapshot TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(telegram_id) ON DELETE CASCADE
+        );
+        """,
+    )
+)
 
 
 class TrackerDatabase:
@@ -570,9 +601,231 @@ class TrackerDatabase:
             )
             return cursor.rowcount > 0
 
+    def get_pending_deletion(self, user_id):
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT user_id, status, deletion_requested_at, deletion_expires_at FROM user_deletions WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "user_id": row["user_id"],
+                "status": row["status"],
+                "deletion_requested_at": row["deletion_requested_at"],
+                "deletion_expires_at": row["deletion_expires_at"],
+            }
+
+    def set_pending_deletion(self, user_id, deletion_requested_at, deletion_expires_at):
+        with self.connection() as connection:
+            connection.execute(
+                "INSERT INTO user_deletions (user_id, status, deletion_requested_at, deletion_expires_at)"
+                " VALUES (?, 'pending', ?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET"
+                " status = excluded.status, deletion_requested_at = excluded.deletion_requested_at,"
+                " deletion_expires_at = excluded.deletion_expires_at, updated_at = CURRENT_TIMESTAMP",
+                (user_id, deletion_requested_at, deletion_expires_at),
+            )
+
+    def clear_pending_deletion(self, user_id):
+        with self.connection() as connection:
+            connection.execute("DELETE FROM user_deletions WHERE user_id = ?", (user_id,))
+
+    def build_recovery_snapshot(self, user_id):
+        with self.connection() as connection:
+            records = {
+                row["record_date"]: _decrypt_count_value(row["count"])
+                for row in connection.execute(
+                    "SELECT record_date, count FROM records WHERE user_id = ? ORDER BY record_date ASC",
+                    (user_id,),
+                ).fetchall()
+            }
+            settings = {
+                row["setting_key"]: row["setting_value"]
+                for row in connection.execute(
+                    "SELECT setting_key, setting_value FROM settings WHERE user_id = ?",
+                    (user_id,),
+                ).fetchall()
+            }
+            states = {
+                row["state_key"]: row["state_value"]
+                for row in connection.execute(
+                    "SELECT state_key, state_value FROM user_states WHERE user_id = ?",
+                    (user_id,),
+                ).fetchall()
+            }
+            return {"records": records, "settings": settings, "user_states": states}
+
+    def store_user_recovery_data(self, user_id, snapshot):
+        with self.connection() as connection:
+            payload = json.dumps(snapshot, sort_keys=True)
+            connection.execute(
+                "INSERT INTO user_recovery_data (user_id, snapshot) VALUES (?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET snapshot = excluded.snapshot, updated_at = CURRENT_TIMESTAMP",
+                (user_id, payload),
+            )
+
+    def get_user_recovery_data(self, user_id):
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT snapshot FROM user_recovery_data WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return json.loads(row["snapshot"])
+
+    def clear_user_recovery_data(self, user_id):
+        with self.connection() as connection:
+            connection.execute("DELETE FROM user_recovery_data WHERE user_id = ?", (user_id,))
+
+    def list_due_pending_deletions(self, now):
+        with self.connection() as connection:
+            rows = connection.execute(
+                "SELECT user_id FROM user_deletions WHERE status = 'pending' AND deletion_expires_at <= ?",
+                (now.isoformat(),),
+            ).fetchall()
+            return [row["user_id"] for row in rows]
+
+    def request_pending_deletion_transaction(self, user_id, requested_at, expires_at):
+        with self.connection() as connection:
+            records = {
+                row["record_date"]: _decrypt_count_value(row["count"])
+                for row in connection.execute(
+                    "SELECT record_date, count FROM records WHERE user_id = ? ORDER BY record_date ASC",
+                    (user_id,),
+                ).fetchall()
+            }
+            settings = {
+                row["setting_key"]: row["setting_value"]
+                for row in connection.execute(
+                    "SELECT setting_key, setting_value FROM settings WHERE user_id = ?",
+                    (user_id,),
+                ).fetchall()
+            }
+            states = {
+                row["state_key"]: row["state_value"]
+                for row in connection.execute(
+                    "SELECT state_key, state_value FROM user_states WHERE user_id = ?",
+                    (user_id,),
+                ).fetchall()
+            }
+            snapshot = {"records": records, "settings": settings, "user_states": states}
+            payload = json.dumps(snapshot, sort_keys=True)
+            connection.execute(
+                "INSERT INTO user_recovery_data (user_id, snapshot) VALUES (?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET snapshot = excluded.snapshot, updated_at = CURRENT_TIMESTAMP",
+                (user_id, payload),
+            )
+            connection.execute(
+                "INSERT INTO user_deletions (user_id, status, deletion_requested_at, deletion_expires_at)"
+                " VALUES (?, 'pending', ?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET"
+                " status = excluded.status, deletion_requested_at = excluded.deletion_requested_at,"
+                " deletion_expires_at = excluded.deletion_expires_at, updated_at = CURRENT_TIMESTAMP",
+                (user_id, requested_at, expires_at),
+            )
+            return {"status": "pending", "requested_at": requested_at, "expires_at": expires_at}
+
+    def restore_pending_deletion_transaction(self, user_id, now_value):
+        with self.connection() as connection:
+            row = connection.execute(
+                "SELECT deletion_expires_at FROM user_deletions WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if row is None:
+                return False
+
+            expires_at = datetime.fromisoformat(row["deletion_expires_at"])
+            if now_value >= expires_at:
+                return False
+
+            recovery_row = connection.execute(
+                "SELECT snapshot FROM user_recovery_data WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if recovery_row is not None:
+                snapshot = json.loads(recovery_row["snapshot"])
+                if "records" in snapshot:
+                    connection.execute("DELETE FROM records WHERE user_id = ?", (user_id,))
+                    for record_date_text, count in snapshot["records"].items():
+                        connection.execute(
+                            "INSERT INTO records (user_id, record_date, count) VALUES (?, ?, ?)",
+                            (user_id, record_date_text, _encrypt_count_value(_restore_count_value(count))),
+                        )
+                if "settings" in snapshot:
+                    connection.execute("DELETE FROM settings WHERE user_id = ?", (user_id,))
+                    for key, value in snapshot["settings"].items():
+                        connection.execute(
+                            "INSERT INTO settings (user_id, setting_key, setting_value) VALUES (?, ?, ?)",
+                            (user_id, key, value),
+                        )
+                if "user_states" in snapshot:
+                    connection.execute("DELETE FROM user_states WHERE user_id = ?", (user_id,))
+                    for key, value in snapshot["user_states"].items():
+                        connection.execute(
+                            "INSERT INTO user_states (user_id, state_key, state_value) VALUES (?, ?, ?)",
+                            (user_id, key, value),
+                        )
+
+            connection.execute("DELETE FROM user_deletions WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM user_recovery_data WHERE user_id = ?", (user_id,))
+            return True
+
+    def purge_user_data(self, user_id):
+        with self.connection() as connection:
+            connection.execute("DELETE FROM user_states WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM settings WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM records WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM user_recovery_data WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM user_deletions WHERE user_id = ?", (user_id,))
+            connection.execute("DELETE FROM users WHERE telegram_id = ?", (user_id,))
+
+    def restore_user_snapshot(self, user_id, snapshot):
+        if not snapshot:
+            return
+        with self.connection() as connection:
+            if "records" in snapshot:
+                connection.execute("DELETE FROM records WHERE user_id = ?", (user_id,))
+                for record_date_text, count in snapshot["records"].items():
+                    connection.execute(
+                        "INSERT INTO records (user_id, record_date, count) VALUES (?, ?, ?)",
+                        (user_id, record_date_text, _encrypt_count_value(_restore_count_value(count))),
+                    )
+            if "settings" in snapshot:
+                connection.execute("DELETE FROM settings WHERE user_id = ?", (user_id,))
+                for key, value in snapshot["settings"].items():
+                    connection.execute(
+                        "INSERT INTO settings (user_id, setting_key, setting_value) VALUES (?, ?, ?)",
+                        (user_id, key, value),
+                    )
+            if "user_states" in snapshot:
+                connection.execute("DELETE FROM user_states WHERE user_id = ?", (user_id,))
+                for key, value in snapshot["user_states"].items():
+                    connection.execute(
+                        "INSERT INTO user_states (user_id, state_key, state_value) VALUES (?, ?, ?)",
+                        (user_id, key, value),
+                    )
+
     # =========================================================
     # SETTINGS
     # =========================================================
+
+    def get_all_settings(self, user_id):
+        with self.connection() as connection:
+            rows = connection.execute(
+                "SELECT setting_key, setting_value FROM settings WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+            return {row["setting_key"]: row["setting_value"] for row in rows}
+
+    def get_all_user_states(self, user_id):
+        with self.connection() as connection:
+            rows = connection.execute(
+                "SELECT state_key, state_value FROM user_states WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+            return {row["state_key"]: row["state_value"] for row in rows}
 
     def get_setting(self, user_id, setting_key):
         with self.connection() as connection:
@@ -606,8 +859,6 @@ class TrackerDatabase:
         bucket regardless of when inside the window they occur, while older buckets are
         naturally discarded as new window boundaries are crossed.
         """
-        from datetime import datetime, timezone
-
         if now is None:
             now = datetime.now(timezone.utc)
 

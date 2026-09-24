@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 
 import pytest
@@ -74,6 +75,45 @@ def test_backup_retention(tmp_path, monkeypatch):
     pattern = re.compile(rf"^{stem}_\d{{8}}_\d{{6}}.*\.db$")
     timestamped = [p for p in backup_dir.iterdir() if p.is_file() and pattern.match(p.name)]
     assert len(timestamped) <= 2
+
+
+def test_backup_retention_zero_disables_backup_storage(tmp_path, monkeypatch):
+    db = tmp_path / "test.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE foo (id INTEGER PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    os.makedirs(backup_dir, exist_ok=True)
+    monkeypatch.setenv("BACKUP_RETENTION", "0")
+
+    with pytest.raises(ValueError, match="BACKUP_RETENTION=0"):
+        backup_database(str(db), str(backup_dir))
+
+    assert list(backup_dir.glob(f"{db.stem}_*.db")) == []
+
+
+def test_backup_retention_keeps_only_configured_number_of_backups(tmp_path, monkeypatch):
+    db = tmp_path / "retention.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE foo (id INTEGER PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+
+    stem = db.stem
+    for ts in ["20260101_000001", "20260102_000002", "20260103_000003", "20260104_000004"]:
+        (backup_dir / f"{stem}_{ts}.db").write_text("x")
+
+    monkeypatch.setenv("BACKUP_RETENTION", "2")
+    backup_database(str(db), str(backup_dir))
+
+    pattern = re.compile(rf"^{stem}_\d{{8}}_\d{{6}}.*\.db$")
+    remaining = [p for p in backup_dir.iterdir() if p.is_file() and pattern.match(p.name)]
+    assert len(remaining) == 2
 
 
 def make_simple_db(path):
@@ -157,6 +197,32 @@ def test_restore_creates_safety_copy(tmp_path):
     rows = conn.execute("SELECT x FROM t ORDER BY id").fetchall()
     conn.close()
     assert ("a",) in rows
+
+
+def test_backup_database_closes_sqlite_connections(monkeypatch, tmp_path):
+    db = tmp_path / "test.db"
+    db.write_text("placeholder")
+    closed = []
+
+    class FakeConnection:
+        def __init__(self, path):
+            self.path = path
+
+        def backup(self, other):
+            return None
+
+        def close(self):
+            closed.append(self.path)
+
+    def tracking_connect(path, *args, **kwargs):
+        return FakeConnection(path)
+
+    monkeypatch.setattr(sqlite3, "connect", tracking_connect)
+
+    backup_dir = tmp_path / "backups"
+    backup_database(str(db), str(backup_dir))
+
+    assert len(closed) == 2
 
 
 def test_restore_safety_copy_preserves_wal_committed_data(tmp_path):

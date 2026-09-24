@@ -1,3 +1,5 @@
+import asyncio
+import functools
 import logging
 import os
 from datetime import date, datetime
@@ -29,11 +31,13 @@ async def enforce_rate_limit(
     tracker = get_tracker(context)
     checker = getattr(tracker, "check_rate_limit", None)
 
-    if checker is not None and not checker(user_id, operation):
-        await update.message.reply_text(
-            message or "⏳ Too many requests. Please wait a minute and try again."
-        )
-        return False
+    if checker is not None:
+        allowed = await asyncio.to_thread(functools.partial(checker, user_id, operation))
+        if not allowed:
+            await update.message.reply_text(
+                message or "⏳ Too many requests. Please wait a minute and try again."
+            )
+            return False
 
     return True
 

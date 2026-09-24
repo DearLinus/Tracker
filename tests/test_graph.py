@@ -216,20 +216,17 @@ def test_all_values_equal(figures):
 
 def test_right_margin_is_small(figures):
     ax, _ = build(SCREENSHOT_RECORDS, figures)
-    latest_x = last_plotted_point(ax)[0]
+    end_x = ax.get_xticks()[-1]
 
-    assert ax.get_xlim()[1] - latest_x <= 1.0
+    assert ax.get_xlim()[1] - end_x <= 1.0
 
 
-def test_no_tick_after_latest_record(figures):
-    """
-    Regression: a tick on 'today' (after the latest record) used to
-    stretch the axis and leave empty space on the right.
-    """
+def test_requested_window_stays_visible_through_today(figures):
     ax, _ = build(SCREENSHOT_RECORDS, figures, timeline="Weekly")
-    latest_x = last_plotted_point(ax)[0]
+    end_x = mdates.date2num(TODAY)
 
-    assert max(ax.get_xticks()) <= latest_x + 1e-9
+    assert max(ax.get_xticks()) == pytest.approx(end_x)
+    assert ax.get_xlim()[1] >= end_x
 
 
 def test_latest_record_not_today(figures):
@@ -243,7 +240,7 @@ def test_latest_record_not_today(figures):
 
     assert hline[1] == pytest.approx(latest_x)
     assert vline[0] == pytest.approx(latest_x)
-    assert ax.get_xlim()[1] - latest_x <= 1.0
+    assert ax.get_xlim()[1] >= mdates.date2num(TODAY)
 
 
 # ------------------------------------------------------------------
@@ -259,6 +256,43 @@ def test_missing_days_do_not_break_guides(figures):
     assert vline[2] == pytest.approx(12)
     assert hline[0] == pytest.approx(ax.get_xlim()[0])
     assert vline[1] == pytest.approx(ax.get_ylim()[0])
+
+
+def test_weekly_window_keeps_full_requested_range_when_latest_record_is_old(figures):
+    records = make_records({5: 3, 3: 7, 1: 2})
+    ax, image = build(records, figures, timeline="Weekly")
+
+    assert isinstance(image, BytesIO)
+    xs = list(ax.lines[0].get_xdata())
+    ys = list(ax.lines[0].get_ydata())
+
+    assert len(xs) == 7
+    assert xs[0] == pytest.approx(mdates.date2num(TODAY - timedelta(days=6)))
+    assert xs[-1] == pytest.approx(mdates.date2num(TODAY))
+    assert any(math.isnan(y) for y in ys)
+    assert ax.get_xlim()[1] >= mdates.date2num(TODAY)
+
+
+def test_weekly_window_keeps_full_range_when_every_day_has_a_record(figures):
+    records = make_records({6: 1, 5: 2, 4: 3, 3: 4, 2: 5, 1: 6, 0: 7})
+    ax, image = build(records, figures, timeline="Weekly")
+
+    assert isinstance(image, BytesIO)
+    assert len(ax.lines[0].get_xdata()) == 7
+    assert ax.get_xlim()[0] <= mdates.date2num(TODAY - timedelta(days=6))
+    assert ax.get_xlim()[1] >= mdates.date2num(TODAY)
+
+
+def test_weekly_window_returns_empty_range_for_old_records_only(figures):
+    records = make_records({30: 5})
+    image = create_graph(FakeLogic(records), user_id=1, timeline="Weekly", today=TODAY)
+    assert image == "empty_range"
+
+
+def test_weekly_window_returns_empty_range_when_no_records_in_range(figures):
+    records = make_records({20: 8, 15: 3})
+    image = create_graph(FakeLogic(records), user_id=1, timeline="Weekly", today=TODAY)
+    assert image == "empty_range"
 
 
 def test_records_outside_timeline_are_ignored(figures):
