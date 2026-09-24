@@ -5,9 +5,14 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import WELCOME_STICKER_ID
-from handlers.constants import WELCOME_MESSAGE
+from handlers.constants import (
+    ACCESS_DENIED_MESSAGE,
+    PRIVATE_CHAT_REQUIRED_MESSAGE,
+    WELCOME_MESSAGE,
+)
 from handlers.utils import (
     clear_user_state,
+    is_private_chat,
     is_user_allowed,
     reset_state,
     send_sticker_if_available,
@@ -24,9 +29,6 @@ async def start(
     user = update.effective_user
 
     # Access control: prevent unauthorized users from creating accounts
-    from handlers.constants import ACCESS_DENIED_MESSAGE, PRIVATE_CHAT_REQUIRED_MESSAGE
-    from handlers.utils import is_private_chat
-
     # Private chat enforcement: reject group messages early
     if not is_private_chat(update):
         await update.message.reply_text(
@@ -45,7 +47,9 @@ async def start(
         )
         return
 
-    await asyncio.to_thread(functools.partial(get_tracker(context).create_user, user.id, user.username))
+    await asyncio.to_thread(
+        functools.partial(get_tracker(context).create_user, user.id, user.username)
+    )
 
     await send_sticker_if_available(
         update,

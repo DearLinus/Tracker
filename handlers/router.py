@@ -70,19 +70,7 @@ async def handle_text(
 
     user_id = get_user_id(update)
 
-    if not get_tracker(context).user_exists(user_id):
-        await update.message.reply_text(
-            "👋 Please start the bot first using /start"
-        )
-        return
-    # Access control: block early if configured
-    if not is_user_allowed(user_id):
-        await update.message.reply_text(
-            ACCESS_DENIED_MESSAGE,
-            reply_markup=MAIN_KEYBOARD,
-        )
-        return
-    # Private chat enforcement
+    # Private chat enforcement: reject group chats before any account checks.
     if not is_private_chat(update):
         await update.message.reply_text(
             PRIVATE_CHAT_REQUIRED_MESSAGE,
@@ -90,6 +78,18 @@ async def handle_text(
         )
         return
 
+    # Access control: block unauthorized users before checking whether they have
+    # created an account, so a disallowed user never sees the new-user prompt.
+    if not is_user_allowed(user_id):
+        await update.message.reply_text(
+            ACCESS_DENIED_MESSAGE,
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
+
+    if not get_tracker(context).user_exists(user_id):
+        await update.message.reply_text("👋 Please start the bot first using /start")
+        return
 
     text = update.message.text.strip()
     awaiting = context.user_data.get("awaiting")
@@ -98,8 +98,9 @@ async def handle_text(
     if awaiting is None:
         # get_user_state is synchronous; it may mirror persisted state into context
         # Offload get_user_state in case it accesses the DB
-        awaiting = await asyncio.to_thread(functools.partial(get_user_state, update, context))
-
+        awaiting = await asyncio.to_thread(
+            functools.partial(get_user_state, update, context)
+        )
 
     # =====================================================
     # BACK
@@ -108,7 +109,6 @@ async def handle_text(
     if text == BACK_BUTTON:
         await go_back(update, context)
         return
-
 
     # =====================================================
     # MAIN MENU
@@ -141,7 +141,6 @@ async def handle_text(
     if text == EXPORT_BUTTON:
         await export_records(update, context)
         return
-
 
     # =====================================================
     # STATES
@@ -186,7 +185,6 @@ async def handle_text(
         await save_new_record(update, context)
         return
 
-
     # =====================================================
     # UNKNOWN MESSAGE
     # =====================================================
@@ -201,7 +199,6 @@ async def handle_text(
         pass
 
     await update.message.reply_text(
-        "⚠️ I didn't understand that.\n\n"
-        "Please choose an option from the menu.",
+        "⚠️ I didn't understand that.\n\nPlease choose an option from the menu.",
         reply_markup=MAIN_KEYBOARD,
     )

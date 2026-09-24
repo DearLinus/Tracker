@@ -35,6 +35,7 @@ TODAY = date(2026, 9, 19)
 # Fixtures
 # ------------------------------------------------------------------
 
+
 def make_image():
     """A fake graph image whose read position is at the END,
     like a freshly saved BytesIO (the handler must seek(0) itself)."""
@@ -104,6 +105,7 @@ def deps(monkeypatch, events):
 # show_graph_menu
 # ------------------------------------------------------------------
 
+
 async def test_menu_sets_awaiting_state(update, context, deps):
     await gh.show_graph_menu(update, context)
 
@@ -131,6 +133,7 @@ async def test_menu_sends_graph_keyboard(update, context, deps):
 # ------------------------------------------------------------------
 # send_graph: invalid timeline
 # ------------------------------------------------------------------
+
 
 async def test_invalid_timeline_shows_warning(update, context, deps):
     await gh.send_graph(update, context, "Not A Real Range")
@@ -161,6 +164,7 @@ async def test_invalid_timeline_keeps_state(update, context, deps):
 # ------------------------------------------------------------------
 # send_graph: success
 # ------------------------------------------------------------------
+
 
 async def test_create_graph_receives_correct_arguments(update, context, deps):
     await gh.send_graph(update, context, VALID_TIMELINE)
@@ -223,9 +227,25 @@ async def test_success_resets_state(update, context, deps):
     assert context.user_data == {}
 
 
-async def test_success_sends_main_keyboard_after_photo(
-    update, context, deps, events
+async def test_graph_state_clear_is_offloaded_to_thread(
+    update, context, deps, monkeypatch
 ):
+    thread_calls = []
+
+    async def fake_to_thread(func, *args, **kwargs):
+        thread_calls.append(func)
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(gh.asyncio, "to_thread", fake_to_thread)
+
+    await gh.send_graph(update, context, VALID_TIMELINE)
+
+    assert any(
+        getattr(call, "func", None) is gh.clear_user_state for call in thread_calls
+    )
+
+
+async def test_success_sends_main_keyboard_after_photo(update, context, deps, events):
     await gh.send_graph(update, context, VALID_TIMELINE)
 
     kinds = [kind for kind, _ in events]
@@ -238,9 +258,7 @@ async def test_success_sends_main_keyboard_after_photo(
 
 
 @pytest.mark.parametrize("timeline", list(GRAPH_TIMELINES))
-async def test_every_available_timeline_is_accepted(
-    update, context, deps, timeline
-):
+async def test_every_available_timeline_is_accepted(update, context, deps, timeline):
     await gh.send_graph(update, context, timeline)
 
     deps.create_graph.assert_called_once()
@@ -251,9 +269,8 @@ async def test_every_available_timeline_is_accepted(
 # send_graph: no records
 # ------------------------------------------------------------------
 
-async def test_no_records_shows_message_with_main_keyboard(
-    update, context, deps
-):
+
+async def test_no_records_shows_message_with_main_keyboard(update, context, deps):
     deps.create_graph.return_value = None
 
     await gh.send_graph(update, context, VALID_TIMELINE)
@@ -300,6 +317,7 @@ async def test_empty_range_shows_informative_message(update, context, deps):
 # send_graph: errors
 # ------------------------------------------------------------------
 
+
 async def test_graph_failure_shows_error_message(update, context, deps):
     deps.create_graph.side_effect = RuntimeError("boom")
 
@@ -345,9 +363,7 @@ async def test_graph_failure_sends_no_photo(update, context, deps):
     update.message.reply_photo.assert_not_called()
 
 
-async def test_telegram_send_failure_shows_error_message(
-    update, context, deps
-):
+async def test_telegram_send_failure_shows_error_message(update, context, deps):
     """If sending the photo itself fails (network, size...), the user
     should still get an error message instead of silence."""
     update.message.reply_photo.side_effect = RuntimeError("telegram down")

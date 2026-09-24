@@ -1,8 +1,8 @@
 import logging
 import os
 
-from cryptography.fernet import Fernet
 import pytest
+from cryptography.fernet import Fernet
 
 # Set env before importing config so required startup variables are present in tests.
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")

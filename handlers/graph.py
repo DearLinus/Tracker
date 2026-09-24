@@ -29,6 +29,16 @@ from services.tracker_service import get_tracker_from_context as get_tracker
 
 logger = logging.getLogger(__name__)
 
+
+async def _clear_graph_user_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Clear transient state immediately and offload persisted state cleanup."""
+    reset_state(context)
+    try:
+        await asyncio.to_thread(functools.partial(clear_user_state, update, context))
+    except (AttributeError, RuntimeError, TypeError, sqlite3.Error):
+        pass
+
+
 async def show_graph_menu(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -53,10 +63,8 @@ async def send_graph(
 ):
 
     if timeline_name not in GRAPH_TIMELINES:
-
         await update.message.reply_text(
-            "⚠️ Please choose one of the available "
-            "time ranges.",
+            "⚠️ Please choose one of the available time ranges.",
             reply_markup=GRAPH_KEYBOARD,
         )
 
@@ -86,9 +94,7 @@ async def send_graph(
         )
 
         if graph_image is None:
-
-            reset_state(context)
-            clear_user_state(update, context)
+            await _clear_graph_user_state(update, context)
 
             await update.message.reply_text(
                 "📈 No records available yet.",
@@ -99,8 +105,7 @@ async def send_graph(
 
         # Special sentinel: user has records, but none in the requested range
         if graph_image == "empty_range":
-            reset_state(context)
-            clear_user_state(update, context)
+            await _clear_graph_user_state(update, context)
 
             await update.message.reply_text(
                 "📈 You have records, but none in the selected time range.",
@@ -123,8 +128,7 @@ async def send_graph(
             ),
         )
 
-        reset_state(context)
-        clear_user_state(update, context)
+        await _clear_graph_user_state(update, context)
 
         await update.message.reply_text(
             "Choose another option:",
@@ -136,8 +140,7 @@ async def send_graph(
     except (ZoneInfoNotFoundError, sqlite3.Error, ValueError, OSError, RuntimeError):
         logger.exception("Failed to generate graph")
 
-        reset_state(context)
-        clear_user_state(update, context)
+        await _clear_graph_user_state(update, context)
 
         await update.message.reply_text(
             "⚠️ I couldn't generate the graph.",

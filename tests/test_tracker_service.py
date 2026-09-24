@@ -31,7 +31,7 @@ def test_setup_application_stores_tracker_on_bot_data(tmp_path):
     assert app.bot_data["tracker"] is tracker
 
 
-def test_setup_application_testing_uses_shared_temp_file_db(monkeypatch):
+def test_setup_application_testing_uses_isolated_temp_file_db(monkeypatch):
     monkeypatch.setenv("TESTING", "1")
     app1 = FakeApp()
     app2 = FakeApp()
@@ -40,11 +40,14 @@ def test_setup_application_testing_uses_shared_temp_file_db(monkeypatch):
     tracker2 = setup_application(app2)
 
     assert tracker1.database.db_path != ":memory:"
+    assert tracker2.database.db_path != ":memory:"
     assert os.path.exists(tracker1.database.db_path)
-    assert tracker1.database.db_path == tracker2.database.db_path
+    assert os.path.exists(tracker2.database.db_path)
+    assert tracker1.database.db_path != tracker2.database.db_path
 
     tracker1.create_user(42, "alice")
-    assert tracker2.user_exists(42)
+    assert tracker1.user_exists(42)
+    assert tracker2.user_exists(42) is False
 
 
 def test_setup_application_reuses_existing_bot_data(tmp_path):

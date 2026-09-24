@@ -3,8 +3,6 @@ import tempfile
 
 from logic import TrackerLogic
 
-_TESTING_DB_PATH = None
-
 
 def setup_application(app, db_path=None):
     """Create a TrackerLogic instance and attach it to the Application.
@@ -13,17 +11,15 @@ def setup_application(app, db_path=None):
     Application owns its own service instance instead of sharing a process-wide
     singleton.
     """
-    global _TESTING_DB_PATH
 
     # During tests, prefer a temporary SQLite file instead of :memory:.
     # SQLite in-memory databases are isolated per connection, which breaks
     # tests that create multiple tracker instances or connections against the
-    # same logical database.
+    # same logical database. Use a unique file per implicit TESTING setup so
+    # isolated tests do not share state through a module-global temp DB.
     if db_path is None and os.getenv("TESTING"):
-        if _TESTING_DB_PATH is None:
-            fd, _TESTING_DB_PATH = tempfile.mkstemp(prefix="tracker_test_", suffix=".db")
-            os.close(fd)
-        db_path = _TESTING_DB_PATH
+        fd, db_path = tempfile.mkstemp(prefix="tracker_test_", suffix=".db")
+        os.close(fd)
 
     tracker_instance = TrackerLogic(db_path)
 

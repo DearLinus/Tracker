@@ -105,3 +105,22 @@ def test_multiple_restores_in_a_row(tmp_path):
     cur = conn.execute("SELECT COUNT(*) FROM foo")
     assert cur.fetchone()[0] == 2
     conn.close()
+
+
+def test_restore_safety_copies_respect_retention(tmp_path, monkeypatch):
+    monkeypatch.setenv("BACKUP_RETENTION", "1")
+    target = tmp_path / "target.db"
+    create_simple_db(str(target))
+
+    backup = tmp_path / "backup.db"
+    create_simple_db(str(backup))
+
+    for ts in ["20250101_010101", "20250102_020202"]:
+        safety = tmp_path / f"target.db.pre_restore_{ts}.db"
+        create_simple_db(str(safety))
+
+    restore_database(str(target), str(backup))
+
+    safety_copies = sorted(tmp_path.glob("target.db.pre_restore_*.db"))
+    assert len(safety_copies) == 1
+    assert safety_copies[0].name.endswith(".db")

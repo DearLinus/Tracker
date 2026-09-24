@@ -28,29 +28,24 @@ class FakeUser:
 
 
 class FakeMessage:
-
     def __init__(self, text):
         self.text = text
         self.replies = []
-
 
     async def reply_text(self, text, **kwargs):
         self.replies.append(text)
 
 
 class FakeUpdate:
-
     def __init__(self, text):
         self.effective_user = FakeUser()
         self.message = FakeMessage(text)
 
 
 class FakeContext:
-
     def __init__(self):
         self.user_data = {}
         self.bot_data = {}
-
 
 
 # =========================================================
@@ -58,43 +53,52 @@ class FakeContext:
 # =========================================================
 
 
+@pytest.mark.parametrize(
+    ("allowed", "exists", "expected_text"),
+    [
+        (True, True, "i didn't understand that"),
+        (True, False, "please start the bot first"),
+        (False, True, "not authorized"),
+        (False, False, "not authorized"),
+    ],
+)
 @pytest.mark.asyncio
-async def test_router_rejects_unknown_user(monkeypatch):
-
+async def test_router_checks_access_control_before_user_existence(
+    monkeypatch,
+    allowed,
+    exists,
+    expected_text,
+):
+    monkeypatch.setenv("ALLOWED_USER_IDS", "123" if allowed else "999")
     update = FakeUpdate("anything")
     context = FakeContext()
 
-    class FakeTrackerA:
+    class FakeTracker:
         @staticmethod
         def user_exists(user_id):
-            return False
+            return exists
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
+
         @staticmethod
         def set_user_state(user_id, key, value):
             return None
+
         @staticmethod
         def get_user_state(user_id, key):
             return None
+
         @staticmethod
         def delete_user_state(user_id, key):
             return None
 
-    context.bot_data = {"tracker": FakeTrackerA()}
+    context.bot_data = {"tracker": FakeTracker()}
 
+    await handle_text(update, context)
 
-    await handle_text(
-        update,
-        context
-    )
-
-
-    assert (
-        "Please start the bot first"
-        in update.message.replies[0]
-    )
-
+    assert expected_text in update.message.replies[0].lower()
 
 
 # =========================================================
@@ -208,53 +212,42 @@ async def test_router_keeps_record_state_for_invalid_input(monkeypatch):
 @pytest.mark.asyncio
 async def test_router_calls_today_record(monkeypatch):
 
-    update = FakeUpdate(
-        TODAY_RECORD_BUTTON
-    )
+    update = FakeUpdate(TODAY_RECORD_BUTTON)
     context = FakeContext()
-
 
     class FakeTrackerB:
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
+
         @staticmethod
         def set_user_state(user_id, key, value):
             return None
+
         @staticmethod
         def get_user_state(user_id, key):
             return None
+
         @staticmethod
         def delete_user_state(user_id, key):
             return None
 
     context.bot_data = {"tracker": FakeTrackerB()}
 
-
     called = []
-
 
     async def fake_start_today(update, context):
         called.append(True)
 
+    monkeypatch.setattr("handlers.router.start_today_record", fake_start_today)
 
-    monkeypatch.setattr(
-        "handlers.router.start_today_record",
-        fake_start_today
-    )
-
-
-    await handle_text(
-        update,
-        context
-    )
-
+    await handle_text(update, context)
 
     assert called == [True]
-
 
 
 # =========================================================
@@ -265,53 +258,43 @@ async def test_router_calls_today_record(monkeypatch):
 @pytest.mark.asyncio
 async def test_router_saves_today_record_when_waiting(monkeypatch):
 
-    update = FakeUpdate(
-        "8"
-    )
+    update = FakeUpdate("8")
 
     context = FakeContext()
 
     context.user_data["awaiting"] = "today_count"
 
-
     class FakeTrackerC:
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
+
         @staticmethod
         def set_user_state(user_id, key, value):
             return None
+
         @staticmethod
         def get_user_state(user_id, key):
             return None
+
         @staticmethod
         def delete_user_state(user_id, key):
             return None
 
     context.bot_data = {"tracker": FakeTrackerC()}
 
-
     called = []
-
 
     async def fake_save_today(update, context):
         called.append(True)
 
+    monkeypatch.setattr("handlers.router.save_today_record", fake_save_today)
 
-    monkeypatch.setattr(
-        "handlers.router.save_today_record",
-        fake_save_today
-    )
-
-
-    await handle_text(
-        update,
-        context
-    )
-
+    await handle_text(update, context)
 
     assert called == [True]
 
@@ -327,15 +310,19 @@ async def test_router_allows_menu_action_while_waiting(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
+
         @staticmethod
         def set_user_state(user_id, key, value):
             return None
+
         @staticmethod
         def get_user_state(user_id, key):
             return None
+
         @staticmethod
         def delete_user_state(user_id, key):
             return None
@@ -347,10 +334,7 @@ async def test_router_allows_menu_action_while_waiting(monkeypatch):
     async def fake_show_graph_menu(update, context):
         called.append(True)
 
-    monkeypatch.setattr(
-        "handlers.router.show_graph_menu",
-        fake_show_graph_menu
-    )
+    monkeypatch.setattr("handlers.router.show_graph_menu", fake_show_graph_menu)
 
     await handle_text(update, context)
 
@@ -360,7 +344,9 @@ async def test_router_allows_menu_action_while_waiting(monkeypatch):
 @pytest.mark.asyncio
 async def test_handle_text_ignores_empty_message():
     # No message -> nothing happens (no exception)
-    update = type("U", (), {"message": None, "effective_user": type("User", (), {"id": 1})()})()
+    update = type(
+        "U", (), {"message": None, "effective_user": type("User", (), {"id": 1})()}
+    )()
     context = FakeContext()
 
     # Should return gracefully
@@ -418,15 +404,19 @@ async def test_main_menu_calls_various_handlers(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
+
         @staticmethod
         def set_user_state(user_id, key, value):
             return None
+
         @staticmethod
         def get_user_state(user_id, key):
             return None
+
         @staticmethod
         def delete_user_state(user_id, key):
             return None
@@ -438,19 +428,19 @@ async def test_main_menu_calls_various_handlers(monkeypatch):
     called = {}
 
     async def fake_new(update, context):
-        called['new'] = True
+        called["new"] = True
 
     async def fake_stats(update, context):
-        called['stats'] = True
+        called["stats"] = True
 
     async def fake_history(update, context):
-        called['history'] = True
+        called["history"] = True
 
     async def fake_settings(update, context):
-        called['settings'] = True
+        called["settings"] = True
 
     async def fake_export(update, context):
-        called['export'] = True
+        called["export"] = True
 
     monkeypatch.setattr("handlers.router.start_new_record", fake_new)
     monkeypatch.setattr("handlers.router.show_statistics", fake_stats)
@@ -460,27 +450,27 @@ async def test_main_menu_calls_various_handlers(monkeypatch):
 
     # NEW_RECORD
     await handle_text(update, context)
-    assert called.get('new')
+    assert called.get("new")
 
     # STATISTICS
     update = FakeUpdate(STATISTICS_BUTTON)
     await handle_text(update, context)
-    assert called.get('stats')
+    assert called.get("stats")
 
     # HISTORY
     update = FakeUpdate(HISTORY_BUTTON)
     await handle_text(update, context)
-    assert called.get('history')
+    assert called.get("history")
 
     # SETTINGS
     update = FakeUpdate(SETTINGS_BUTTON)
     await handle_text(update, context)
-    assert called.get('settings')
+    assert called.get("settings")
 
     # EXPORT
     update = FakeUpdate(EXPORT_BUTTON)
     await handle_text(update, context)
-    assert called.get('export')
+    assert called.get("export")
 
 
 @pytest.mark.asyncio
@@ -492,15 +482,19 @@ async def test_state_fallback_uses_persisted_state(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
+
         @staticmethod
         def set_user_state(user_id, key, value):
             return None
+
         @staticmethod
         def get_user_state(user_id, key):
             return None
+
         @staticmethod
         def delete_user_state(user_id, key):
             return None
@@ -528,12 +522,13 @@ async def test_state_fallback_uses_persisted_state(monkeypatch):
 async def test_settings_state_actions(monkeypatch):
     update = FakeUpdate(DARK_THEME_BUTTON)
     context = FakeContext()
-    context.user_data['awaiting'] = 'settings'
+    context.user_data["awaiting"] = "settings"
 
     class FakeTracker:
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
@@ -545,39 +540,40 @@ async def test_settings_state_actions(monkeypatch):
     called = {}
 
     async def fake_change_theme(update, context, theme):
-        called['theme'] = theme
+        called["theme"] = theme
 
     async def fake_request_delete(update, context):
-        called['delete'] = True
+        called["delete"] = True
 
     monkeypatch.setattr("handlers.router.change_graph_theme", fake_change_theme)
     monkeypatch.setattr("handlers.router.request_delete_data", fake_request_delete)
 
     # DARK_THEME_BUTTON
     await handle_text(update, context)
-    assert called.get('theme') == DARK_THEME
+    assert called.get("theme") == DARK_THEME
 
     # LIGHT_THEME_BUTTON
     update = FakeUpdate(LIGHT_THEME_BUTTON)
     await handle_text(update, context)
-    assert called.get('theme') == LIGHT_THEME
+    assert called.get("theme") == LIGHT_THEME
 
     # DELETE_DATA_BUTTON
     update = FakeUpdate(DELETE_DATA_BUTTON)
     await handle_text(update, context)
-    assert called.get('delete')
+    assert called.get("delete")
 
 
 @pytest.mark.asyncio
 async def test_confirm_delete_buttons_call_confirm(monkeypatch):
     update = FakeUpdate(CONFIRM_YES_BUTTON)
     context = FakeContext()
-    context.user_data['awaiting'] = 'confirm_delete'
+    context.user_data["awaiting"] = "confirm_delete"
 
     class FakeTracker:
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
@@ -597,7 +593,7 @@ async def test_confirm_delete_buttons_call_confirm(monkeypatch):
     assert calls == [True]
 
     update = FakeUpdate(CONFIRM_NO_BUTTON)
-    context.user_data['awaiting'] = 'confirm_delete'
+    context.user_data["awaiting"] = "confirm_delete"
     await handle_text(update, context)
     assert calls == [True, False]
 
@@ -611,6 +607,7 @@ async def test_unknown_message_shows_main_keyboard(monkeypatch):
         @staticmethod
         def user_exists(user_id):
             return True
+
         @staticmethod
         def get_setting(user_id, key, default=None):
             return default
@@ -620,7 +617,7 @@ async def test_unknown_message_shows_main_keyboard(monkeypatch):
     context.bot_data = {"tracker": autospec_tracker(FakeTracker())}
 
     # ensure in-memory key exists so get_user_state() is not invoked
-    context.user_data['awaiting'] = None
+    context.user_data["awaiting"] = None
 
     await handle_text(update, context)
 
