@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfoNotFoundError
 from telegram import InputFile, Update
 from telegram.ext import ContextTypes
 
+from database import RecordDecryptionError
 from graph import create_graph
 from handlers.constants import (
     GRAPH_TIMELINE,
@@ -25,6 +26,7 @@ from keyboards import (
     GRAPH_KEYBOARD,
     MAIN_KEYBOARD,
 )
+from logic import RECORD_DECRYPTION_MESSAGE
 from services.tracker_service import get_tracker_from_context as get_tracker
 
 logger = logging.getLogger(__name__)
@@ -82,16 +84,53 @@ async def send_graph(
         theme = get_graph_theme(update, context)
 
         # Offload graph generation to a thread to avoid blocking the event loop.
-        graph_image = await asyncio.to_thread(
-            functools.partial(
-                create_graph,
-                get_tracker(context),
-                user_id=get_user_id(update),
-                timeline=timeline_name,
-                theme=theme,
-                today=get_user_today(update, context),
+        try:
+            graph_image = await asyncio.to_thread(
+                functools.partial(
+                    create_graph,
+                    get_tracker(context),
+                    user_id=get_user_id(update),
+                    timeline=timeline_name,
+                    theme=theme,
+                    today=get_user_today(update, context),
+                )
             )
+        except RecordDecryptionError:
+            logger.exception("Decryption failed while generating graph")
+
+            await _clear_graph_user_state(update, context)
+
+            await update.message.reply_text(
+                RECORD_DECRYPTION_MESSAGE,
+                reply_markup=MAIN_KEYBOARD,
+            )
+
+            return
+        except (ZoneInfoNotFoundError, sqlite3.Error, ValueError, OSError, RuntimeError):
+            logger.exception("Failed to generate graph")
+
+            await _clear_graph_user_state(update, context)
+
+            await update.message.reply_text(
+                "⚠️ I couldn't generate the graph.",
+                reply_markup=MAIN_KEYBOARD,
+            )
+
+            return
+
+    except (ZoneInfoNotFoundError, sqlite3.Error, ValueError, OSError, RuntimeError):
+        logger.exception("Failed to generate graph")
+
+        await _clear_graph_user_state(update, context)
+
+        await update.message.reply_text(
+            "⚠️ I couldn't generate the graph.",
+            reply_markup=MAIN_KEYBOARD,
         )
+
+        return
+
+    try:
 
         if graph_image is None:
             await _clear_graph_user_state(update, context)

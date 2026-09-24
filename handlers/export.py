@@ -1,14 +1,19 @@
 import asyncio
 import csv
 import functools
+import logging
 import os
 import tempfile
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from database import RecordDecryptionError
 from handlers.utils import enforce_rate_limit, get_user_id
+from logic import RECORD_DECRYPTION_MESSAGE
 from services.tracker_service import get_tracker_from_context as get_tracker
+
+logger = logging.getLogger(__name__)
 
 
 def _build_export_file(tracker, user_id):
@@ -55,10 +60,17 @@ async def export_records(
 
     user_id = get_user_id(update)
 
-    # Offload fetching records and file creation to a thread
-    filename = await asyncio.to_thread(
-        functools.partial(_build_export_file, get_tracker(context), user_id)
-    )
+    try:
+        # Offload fetching records and file creation to a thread
+        filename = await asyncio.to_thread(
+            functools.partial(_build_export_file, get_tracker(context), user_id)
+        )
+    except RecordDecryptionError:
+        logger.exception("Decryption failed while exporting records")
+        await update.message.reply_text(
+            RECORD_DECRYPTION_MESSAGE,
+        )
+        return
 
     if not filename:
         await update.message.reply_text("📤 No records available to export.")

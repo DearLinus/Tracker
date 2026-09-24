@@ -1,10 +1,12 @@
 import asyncio
 import functools
+import logging
 from datetime import timedelta
 
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from database import RecordDecryptionError
 from handlers.utils import (
     clear_user_state,
     get_user_id,
@@ -12,7 +14,10 @@ from handlers.utils import (
     reset_state,
 )
 from keyboards import HISTORY_KEYBOARD
+from logic import RECORD_DECRYPTION_MESSAGE
 from services.tracker_service import get_tracker_from_context as get_tracker
+
+logger = logging.getLogger(__name__)
 
 
 async def show_history(
@@ -25,8 +30,16 @@ async def show_history(
 
     user_id = get_user_id(update)
 
-    # fetch records in a thread to avoid blocking the event loop
-    records = await asyncio.to_thread(functools.partial(get_tracker(context).get_records, user_id))
+    try:
+        # fetch records in a thread to avoid blocking the event loop
+        records = await asyncio.to_thread(functools.partial(get_tracker(context).get_records, user_id))
+    except RecordDecryptionError:
+        logger.exception("Decryption failed while fetching history")
+        await update.message.reply_text(
+            RECORD_DECRYPTION_MESSAGE,
+            reply_markup=HISTORY_KEYBOARD,
+        )
+        return
 
     lines = [
         "📜 Last 7 Days\n"

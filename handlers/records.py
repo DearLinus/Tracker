@@ -8,6 +8,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import ERROR_STICKER_ID, SUCCESS_STICKER_ID
+from database import RecordDecryptionError
 from handlers.constants import (
     COUNT_MUST_BE_WHOLE_NUMBER_MESSAGE,
     GENERIC_RECORD_ERROR_MESSAGE,
@@ -32,6 +33,7 @@ from handlers.utils import (
     set_user_state,
 )
 from keyboards import BACK_KEYBOARD, MAIN_KEYBOARD
+from logic import RECORD_DECRYPTION_MESSAGE
 from services.tracker_service import get_tracker_from_context as get_tracker
 
 logger = logging.getLogger(__name__)
@@ -64,10 +66,18 @@ async def start_today_record(
     today_date = get_user_today(update, context)
     user_id = get_user_id(update)
 
-    # Offload DB read to thread
-    existing = await asyncio.to_thread(
-        functools.partial(get_tracker(context).get_record, user_id, today_date)
-    )
+    try:
+        # Offload DB read to thread
+        existing = await asyncio.to_thread(
+            functools.partial(get_tracker(context).get_record, user_id, today_date)
+        )
+    except RecordDecryptionError:
+        logger.exception("Decryption failed while loading today's record")
+        await update.message.reply_text(
+            RECORD_DECRYPTION_MESSAGE,
+            reply_markup=BACK_KEYBOARD,
+        )
+        return
 
     date_label = today_date.strftime("%B %d, %Y")
     if existing is None:
@@ -135,6 +145,21 @@ async def save_today_record(
                 date_label=today_date.strftime("%B %d, %Y"),
                 count=count,
             ),
+            reply_markup=MAIN_KEYBOARD,
+        )
+
+    except RecordDecryptionError:
+        logger.exception("Decryption failed while saving today's record")
+
+        await _clear_record_state(update, context)
+
+        await send_sticker_if_available(
+            update,
+            ERROR_STICKER_ID,
+        )
+
+        await update.message.reply_text(
+            RECORD_DECRYPTION_MESSAGE,
             reply_markup=MAIN_KEYBOARD,
         )
 
@@ -273,6 +298,22 @@ async def save_new_record(
             f"Action: {action}",
             reply_markup=MAIN_KEYBOARD,
         )
+
+    except RecordDecryptionError:
+        logger.exception("Decryption failed while saving a new record")
+
+        await _clear_record_state(update, context)
+
+        await send_sticker_if_available(
+            update,
+            ERROR_STICKER_ID,
+        )
+
+        await update.message.reply_text(
+            RECORD_DECRYPTION_MESSAGE,
+            reply_markup=MAIN_KEYBOARD,
+        )
+        return
 
     except ValueError as e:
         await update.message.reply_text(

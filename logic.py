@@ -2,7 +2,7 @@ from datetime import date
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import config
-from database import RecordDecryptionError, TrackerDatabase
+from database import TrackerDatabase
 from timezone import DEFAULT_TIMEZONE, get_today
 
 USER_ID_REQUIRED_MESSAGE = "user_id cannot be None."
@@ -166,13 +166,10 @@ class TrackerLogic:
 
         self._require_user(user_id)
 
-        try:
-            return self.database.get_record(
-                user_id,
-                record_date
-            )
-        except RecordDecryptionError as exc:
-            raise ValueError(RECORD_DECRYPTION_MESSAGE) from exc
+        return self.database.get_record(
+            user_id,
+            record_date
+        )
 
 
     def get_records(
@@ -184,12 +181,9 @@ class TrackerLogic:
 
         self._require_user(user_id)
 
-        try:
-            return self.database.get_records(
-                user_id
-            )
-        except RecordDecryptionError as exc:
-            raise ValueError(RECORD_DECRYPTION_MESSAGE) from exc
+        return self.database.get_records(
+            user_id
+        )
 
 
     # =========================================================

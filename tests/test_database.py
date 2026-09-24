@@ -23,6 +23,32 @@ def test_database_tracks_applied_migrations(database):
     assert "002_add_indexes" in migrations
 
 
+def test_001_init_schema_preserves_original_count_constraint():
+    import database as db_module
+
+    schema_sql = db_module.MIGRATIONS[0][1]
+
+    assert "count INTEGER NOT NULL CHECK(count >= 0)" in schema_sql
+    assert "count TEXT NOT NULL" not in schema_sql
+
+
+def test_fresh_database_migrates_to_encrypted_text_schema(tmp_path, monkeypatch):
+    monkeypatch.setattr("config.ENCRYPTION_KEY", Fernet.generate_key().decode())
+    db = TrackerDatabase(str(tmp_path / "fresh.db"))
+    db.create_user(1)
+    db.add_or_update_record(1, date(2026, 9, 1), 9)
+
+    with sqlite3.connect(str(tmp_path / "fresh.db")) as conn:
+        raw = conn.execute("SELECT count FROM records WHERE user_id = 1").fetchone()[0]
+        info = conn.execute("PRAGMA table_info('records')").fetchall()
+
+    count_column = next(col for col in info if col[1] == "count")
+
+    assert raw.startswith("enc:")
+    assert count_column[2] == "TEXT"
+    assert db.get_record(1, date(2026, 9, 1)) == 9
+
+
 def test_migration_list_is_in_numeric_order():
     import database as db_module
 
@@ -291,6 +317,37 @@ def test_migration_encrypts_plaintext_records(tmp_path, monkeypatch):
     assert raw != 7
     assert isinstance(raw, str)
     assert raw.startswith("enc:")
+    assert db.get_record(1, date(2026, 9, 1)) == 7
+
+
+def test_migration_encrypts_legacy_text_schema_without_recreating_duplicate_index(tmp_path, monkeypatch):
+    monkeypatch.setattr("config.ENCRYPTION_KEY", Fernet.generate_key().decode())
+    db_path = tmp_path / "legacy_text_schema.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE records (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, record_date TEXT NOT NULL, count TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(telegram_id) ON DELETE CASCADE, UNIQUE(user_id, record_date))"
+        )
+        conn.execute(
+            "CREATE TABLE users (telegram_id INTEGER PRIMARY KEY)"
+        )
+        conn.execute("INSERT INTO users (telegram_id) VALUES (1)")
+        conn.execute(
+            "INSERT INTO records (user_id, record_date, count) VALUES (?, ?, ?)",
+            (1, "2026-09-01", "7"),
+        )
+        conn.execute(
+            "CREATE TABLE schema_migrations (migration_name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+        )
+        conn.commit()
+
+    db = TrackerDatabase(str(db_path))
+    with sqlite3.connect(db_path) as conn:
+        raw = conn.execute("SELECT count FROM records WHERE user_id = 1").fetchone()[0]
+        rec_indexes = conn.execute("PRAGMA index_list('records')").fetchall()
+
+    assert raw.startswith("enc:")
+    assert not any(row[1] == "idx_records_user_date" for row in rec_indexes)
+    assert any(row[1].startswith("sqlite_autoindex_records_") for row in rec_indexes)
     assert db.get_record(1, date(2026, 9, 1)) == 7
 
 

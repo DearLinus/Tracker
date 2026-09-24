@@ -329,6 +329,20 @@ async def test_graph_failure_shows_error_message(update, context, deps):
     assert kwargs["reply_markup"] is MAIN_KEYBOARD
 
 
+async def test_graph_decryption_failure_shows_decryption_message(update, context, deps):
+    from database import RecordDecryptionError
+    from logic import RECORD_DECRYPTION_MESSAGE
+
+    deps.create_graph.side_effect = RecordDecryptionError("bad key")
+
+    await gh.send_graph(update, context, VALID_TIMELINE)
+
+    update.message.reply_text.assert_awaited_once()
+    args, kwargs = update.message.reply_text.call_args
+    assert args[0] == RECORD_DECRYPTION_MESSAGE
+    assert kwargs["reply_markup"] is MAIN_KEYBOARD
+
+
 async def test_graph_failure_does_not_raise(update, context, deps):
     deps.create_graph.side_effect = RuntimeError("boom")
 

@@ -77,7 +77,7 @@ MIGRATIONS = [
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             record_date TEXT NOT NULL,
-            count TEXT NOT NULL,
+            count INTEGER NOT NULL CHECK(count >= 0),
             FOREIGN KEY(user_id) REFERENCES users(telegram_id) ON DELETE CASCADE,
             UNIQUE(user_id, record_date)
         );
@@ -310,9 +310,10 @@ def _encrypt_record_counts_migration(connection):
         )
 
     connection.execute("DROP TABLE records_legacy")
-    connection.execute(
-        "CREATE INDEX IF NOT EXISTS idx_records_user_date ON records(user_id, record_date)"
-    )
+    # Do not recreate the explicit canonical index here. The UNIQUE(user_id, record_date)
+    # constraint already creates the canonical autoindex, and the post-migration cleanup
+    # should remove any redundant explicit duplicates rather than reintroducing them.
+    _consolidate_index_cleanup(connection)
 
 
 MIGRATIONS.append(("008_encrypt_record_counts", _encrypt_record_counts_migration))

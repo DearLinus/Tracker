@@ -415,6 +415,47 @@ async def test_save_new_record_invalid_date_and_count_cases():
 
 
 @pytest.mark.asyncio
+async def test_start_today_record_handles_record_decryption_error(monkeypatch):
+    update = FakeUpdate()
+    context = FakeContext()
+
+    class BrokenTracker:
+        @staticmethod
+        def get_record(*args, **kwargs):
+            raise RuntimeError("decryption failed")
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    from database import RecordDecryptionError
+    from logic import RECORD_DECRYPTION_MESSAGE
+
+    def boom(*args, **kwargs):
+        raise RecordDecryptionError("bad key")
+
+    BrokenTracker.get_record = staticmethod(boom)
+    context.bot_data = {"tracker": BrokenTracker()}
+
+    await start_today_record(update, context)
+
+    assert update.message.replies[-1] == RECORD_DECRYPTION_MESSAGE
+    assert GENERIC_RECORD_ERROR_MESSAGE not in update.message.replies[-1]
+
+
+@pytest.mark.asyncio
 async def test_save_today_record_handles_db_error(monkeypatch):
 
     update = FakeUpdate("8")
@@ -458,6 +499,52 @@ async def test_save_today_record_handles_db_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_save_today_record_handles_record_decryption_error(monkeypatch):
+    update = FakeUpdate("8")
+    context = FakeContext()
+
+    class BrokenTracker:
+        @staticmethod
+        def get_record(*args):
+            return None
+
+        @staticmethod
+        def save_record(*args, **kwargs):
+            from database import RecordDecryptionError
+            raise RecordDecryptionError("bad key")
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": BrokenTracker()}
+
+    async def fake_send_sticker(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(
+        "handlers.records.send_sticker_if_available",
+        fake_send_sticker,
+    )
+
+    from logic import RECORD_DECRYPTION_MESSAGE
+
+    await save_today_record(update, context)
+
+    assert update.message.replies[-1] == RECORD_DECRYPTION_MESSAGE
+    assert GENERIC_RECORD_ERROR_MESSAGE not in update.message.replies[-1]
+
+
+@pytest.mark.asyncio
 async def test_save_today_record_handles_tracker_value_error(monkeypatch):
 
     update = FakeUpdate("8")
@@ -498,6 +585,55 @@ async def test_save_today_record_handles_tracker_value_error(monkeypatch):
     await save_today_record(update, context)
 
     assert "validation failed" in update.message.replies[-1]
+
+
+@pytest.mark.asyncio
+async def test_save_new_record_handles_record_decryption_error(monkeypatch):
+    update = FakeUpdate("2026-09-10 5")
+    context = FakeContext()
+
+    class BadTracker:
+        @staticmethod
+        def get_record(*args, **kwargs):
+            from database import RecordDecryptionError
+            raise RecordDecryptionError("bad key")
+
+        @staticmethod
+        def save_record(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def get_setting(user_id, key, default=None):
+            return default
+
+        @staticmethod
+        def set_user_state(user_id, key, value):
+            return None
+
+        @staticmethod
+        def get_user_state(user_id, key):
+            return None
+
+        @staticmethod
+        def delete_user_state(user_id, key):
+            return None
+
+    context.bot_data = {"tracker": BadTracker()}
+
+    async def fake_send_sticker(*args, **kwargs):
+        pass
+
+    monkeypatch.setattr(
+        "handlers.records.send_sticker_if_available",
+        fake_send_sticker,
+    )
+
+    from logic import RECORD_DECRYPTION_MESSAGE
+
+    await save_new_record(update, context)
+
+    assert update.message.replies[-1] == RECORD_DECRYPTION_MESSAGE
+    assert GENERIC_RECORD_ERROR_MESSAGE not in update.message.replies[-1]
 
 
 @pytest.mark.asyncio
