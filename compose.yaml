@@ -1,0 +1,15 @@
+services:
+  tracker-bot:
+    build:
+      context: .
+    image: tracker-bot:latest
+    container_name: tracker-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_PATH: /data/tracker.db
+      BACKUP_DIR: /data/backups
+    volumes:
+      - ./data:/data
+    working_dir: /app

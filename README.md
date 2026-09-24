@@ -259,6 +259,87 @@ Keep this value stable and persistent for the lifetime of the database. If the k
 
 ## Deployment
 
+### Docker Deployment
+
+Docker is supported as a deployment convenience layer only. It does not change the bot's runtime architecture, SQLite behavior, migration system, rate limiter, handler logic, or encryption/decryption flow.
+
+#### Prerequisites
+
+- Docker Engine
+- Docker Compose
+- A host `.env` file with the runtime configuration for the bot
+
+#### 1. Copy the example environment file
+
+```bash
+cp .env.example .env
+```
+
+Then set the real values in `.env` for:
+
+- `TELEGRAM_BOT_TOKEN`
+- `ENCRYPTION_KEY`
+- `ALLOWED_USER_IDS` (optional)
+- any other runtime variables you need
+
+The bot reads environment variables directly at startup (`config.py` via `python-dotenv`), so Docker passes them in from the host environment instead of embedding secrets into the image.
+
+#### 2. Create the persistent data directory
+
+```bash
+mkdir -p data
+```
+
+The Docker Compose file mounts `./data:/data`, so SQLite data and backup files remain on the host filesystem instead of inside the container's writable layer.
+
+#### 3. Build the image
+
+```bash
+docker compose build
+```
+
+or:
+
+```bash
+docker build -t tracker-bot:latest .
+```
+
+#### 4. Start the bot
+
+```bash
+docker compose up -d
+```
+
+#### 5. Check logs
+
+```bash
+docker compose logs -f tracker-bot
+```
+
+#### 6. Stop it
+
+```bash
+docker compose down
+```
+
+#### 7. Database persistence and backup
+
+- SQLite data is stored on the host at `./data/tracker.db`
+- backup files are written under `./data/backups`
+- the database is not kept in a temporary container filesystem
+- `ENCRYPTION_KEY` must still be kept outside the repository and outside the database itself
+- a database backup is only useful if the same `ENCRYPTION_KEY` is also preserved separately
+- losing or changing `ENCRYPTION_KEY` makes previously encrypted record counts unreadable
+
+#### 8. Security notes
+
+- The container runs as a non-root user
+- no secrets are baked into the image
+- no `.env` file is copied into the image
+- the app uses a dedicated persistent data directory rather than temporary writable layers
+
+This Docker deployment is intentionally minimal and does not replace the existing systemd-based deployment. Systemd remains supported and unchanged.
+
 ### Linux (systemd)
 
 For production Linux deployments, see [docs/systemd.md](docs/systemd.md) for a complete systemd service example with:
