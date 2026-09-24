@@ -32,7 +32,7 @@ class TrackerLogic:
     It does not know anything about Telegram.
     """
 
-    def __init__(self, db_path=None):
+    def __init__(self, db_path: str | None = None) -> None:
         # Prefer explicit injection of a db_path. If not provided, fall
         # back to the application configuration. This makes tests simpler
         # and avoids scattering os.getenv throughout business logic.
@@ -46,9 +46,9 @@ class TrackerLogic:
 
     def create_user(
         self,
-        user_id,
-        username=None
-    ):
+        user_id: int,
+        username: str | None = None,
+    ) -> None:
 
         self._validate_user_id(user_id)
 
@@ -75,8 +75,8 @@ class TrackerLogic:
 
     def user_exists(
         self,
-        user_id
-    ):
+        user_id: int,
+    ) -> bool:
 
         self._validate_user_id(user_id)
 
@@ -91,10 +91,10 @@ class TrackerLogic:
 
     def save_record(
         self,
-        user_id,
-        record_date,
-        count
-    ):
+        user_id: int,
+        record_date: date,
+        count: int,
+    ) -> None:
 
         self._validate_user_id(user_id)
 
@@ -116,9 +116,9 @@ class TrackerLogic:
 
     def delete_record(
         self,
-        user_id,
-        record_date
-    ):
+        user_id: int,
+        record_date: date,
+    ) -> bool:
 
         self._validate_user_id(user_id)
         self._validate_date(record_date)
@@ -139,8 +139,8 @@ class TrackerLogic:
 
     def delete_user(
         self,
-        user_id
-    ):
+        user_id: int,
+    ) -> bool:
 
         self._validate_user_id(user_id)
         self._require_user(user_id)
@@ -157,9 +157,9 @@ class TrackerLogic:
 
     def get_record(
         self,
-        user_id,
-        record_date
-    ):
+        user_id: int,
+        record_date: date,
+    ) -> int | None:
 
         self._validate_user_id(user_id)
         self._validate_date(record_date)
@@ -174,8 +174,8 @@ class TrackerLogic:
 
     def get_records(
         self,
-        user_id
-    ):
+        user_id: int,
+    ) -> dict[date, int]:
 
         self._validate_user_id(user_id)
 
@@ -190,7 +190,7 @@ class TrackerLogic:
     # STATISTICS
     # =========================================================
 
-    def get_statistics(self, user_id):
+    def get_statistics(self, user_id: int) -> dict[str, int | float]:
 
         records = self.get_records(user_id)
 
@@ -215,7 +215,13 @@ class TrackerLogic:
     # RATE LIMITS
     # =========================================================
 
-    def check_rate_limit(self, user_id, operation, limit=None, window_seconds=None):
+    def check_rate_limit(
+        self,
+        user_id: int,
+        operation: str,
+        limit: int | None = None,
+        window_seconds: int | None = None,
+    ) -> bool:
         self._validate_user_id(user_id)
 
         config = DEFAULT_RATE_LIMITS.get(operation, {})
@@ -241,10 +247,10 @@ class TrackerLogic:
 
     def get_setting(
         self,
-        user_id,
-        setting_key,
-        default=None
-    ):
+        user_id: int,
+        setting_key: str,
+        default: object | None = None,
+    ) -> object | None:
 
         self._validate_user_id(user_id)
 
@@ -264,10 +270,10 @@ class TrackerLogic:
 
     def set_setting(
         self,
-        user_id,
-        setting_key,
-        setting_value
-    ):
+        user_id: int,
+        setting_key: str,
+        setting_value: object,
+    ) -> None:
 
         self._validate_user_id(user_id)
         self._require_user(user_id)
@@ -285,8 +291,8 @@ class TrackerLogic:
 
     def _validate_user_id(
         self,
-        user_id
-    ):
+        user_id: int | None,
+    ) -> None:
 
         if user_id is None:
             raise ValueError(USER_ID_REQUIRED_MESSAGE)
@@ -299,13 +305,13 @@ class TrackerLogic:
 
     def _validate_date(
         self,
-        record_date
-    ):
+        record_date: date,
+    ) -> None:
 
         if not isinstance(record_date, date):
             raise TypeError(DATE_TYPE_MESSAGE)
 
-    def _validate_timezone_name(self, timezone_name):
+    def _validate_timezone_name(self, timezone_name: str | None) -> str:
         if timezone_name is None:
             return DEFAULT_TIMEZONE
 
@@ -318,7 +324,7 @@ class TrackerLogic:
 
         return timezone_name
 
-    def _resolve_user_timezone(self, user_id):
+    def _resolve_user_timezone(self, user_id: int) -> str:
         timezone_name = self.get_setting(
             user_id,
             "timezone",
@@ -330,26 +336,26 @@ class TrackerLogic:
     # PERSISTED USER STATE
     # =========================================================
 
-    def set_user_state(self, user_id, state_key, state_value):
+    def set_user_state(self, user_id: int, state_key: str, state_value: object) -> None:
         self._validate_user_id(user_id)
         self._require_user(user_id)
         self.database.set_user_state(user_id, state_key, state_value)
 
-    def get_user_state(self, user_id, state_key):
+    def get_user_state(self, user_id: int, state_key: str) -> object | None:
         self._validate_user_id(user_id)
         # do not require user here; reading state for unknown user should
         # simply return None
         return self.database.get_user_state(user_id, state_key)
 
-    def delete_user_state(self, user_id, state_key):
+    def delete_user_state(self, user_id: int, state_key: str) -> None:
         self._validate_user_id(user_id)
         self.database.delete_user_state(user_id, state_key)
 
     def _validate_record_date(
         self,
-        user_id,
-        record_date
-    ):
+        user_id: int,
+        record_date: date,
+    ) -> None:
 
         self._validate_date(record_date)
         timezone_name = self._resolve_user_timezone(user_id)
@@ -359,8 +365,8 @@ class TrackerLogic:
 
     def _validate_count(
         self,
-        count
-    ):
+        count: int,
+    ) -> None:
 
         if isinstance(count, bool) or not isinstance(count, int):
             raise TypeError(COUNT_TYPE_MESSAGE)
@@ -373,8 +379,8 @@ class TrackerLogic:
 
     def _require_user(
         self,
-        user_id
-    ):
+        user_id: int,
+    ) -> None:
 
         if not self.user_exists(user_id):
             raise ValueError(

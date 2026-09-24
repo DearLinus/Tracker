@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def get_env_value(name: str, *, required: bool = False, default: str | None = None):
+def get_env_value(name: str, *, required: bool = False, default: str | None = None) -> str | None:
     """Return a trimmed environment value.
 
     When `required=True`, raise immediately instead of silently falling back.

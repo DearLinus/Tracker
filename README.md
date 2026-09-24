@@ -238,8 +238,9 @@ ERROR_STICKER_ID=
 
 **Security notes:**
 - `TELEGRAM_BOT_TOKEN` is required and validated at startup. Missing or invalid tokens cause immediate startup failure.
-- `ENCRYPTION_KEY` is required for record-count encryption. Generate a fresh value once, store it in `.env`, and back it up separately from the SQLite database.
-- Never commit `.env` or your bot token to version control.
+- `ENCRYPTION_KEY` is required for record-count encryption. It must be persistent across restarts and deployments; if it changes or is lost, previously encrypted `records.count` values become unreadable and cannot be decrypted.
+- Do not store the key in the repository, in the SQLite database, or in a version-controlled file such as `.env` that is committed to Git. Keep it in a secure secret manager, an encrypted external secret store, or a protected local environment file that is not tracked by Git.
+- A database backup by itself is not enough to restore encrypted data. The same `ENCRYPTION_KEY` must be available at restore time, otherwise the backup is effectively unusable for the encrypted count values.
 - If `ALLOWED_USER_IDS` is set but empty/invalid, the bot will fail fast with a configuration error.
 
 ### Generate the encryption key
@@ -254,7 +255,7 @@ This prints a fresh Fernet key. Copy it into `.env` as:
 ENCRYPTION_KEY=your_generated_key_here
 ```
 
-Store the same key in a secure secret manager or an encrypted backup location; without it, the database backup is not useful because the encrypted `records.count` values cannot be decrypted.
+Keep this value stable and persistent for the lifetime of the database. If the key is rotated or lost, existing encrypted record counts can no longer be decrypted, so the key should be stored separately from the SQLite backup in a secure secret store or protected local secret location.
 
 ## Deployment
 

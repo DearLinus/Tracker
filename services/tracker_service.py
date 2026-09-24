@@ -1,10 +1,12 @@
 import os
 import tempfile
 
+from telegram.ext import Application
+
 from logic import TrackerLogic
 
 
-def setup_application(app, db_path=None):
+def setup_application(app: Application, db_path: str | None = None) -> TrackerLogic:
     """Create a TrackerLogic instance and attach it to the Application.
 
     The tracker is stored on ``app.bot_data["tracker"]`` so each Telegram
@@ -35,7 +37,7 @@ def setup_application(app, db_path=None):
     return tracker_instance
 
 
-def get_tracker_from_context(context):
+def get_tracker_from_context(context: object) -> TrackerLogic:
     """Return the TrackerLogic instance stored on the Telegram context.
 
     Looks up ``context.bot_data["tracker"]``, then
@@ -61,7 +63,7 @@ def get_tracker_from_context(context):
     return tracker
 
 
-def _tracker_from_bot_data(bot_data):
+def _tracker_from_bot_data(bot_data: object | None) -> TrackerLogic | None:
     if bot_data is None:
         return None
 

@@ -9,6 +9,7 @@ Create or update a `.env` file in the project root with the required runtime con
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token
 DATABASE_PATH=/var/lib/daily-tracker/tracker.db
+ENCRYPTION_KEY=your_persistent_fernet_key
 ```
 
 Optional values:
@@ -20,6 +21,8 @@ ERROR_STICKER_ID=
 ```
 
 The bot reads configuration from environment variables via `python-dotenv` on startup, so the service can load the project root `.env` file without needing code changes.
+
+Important: `ENCRYPTION_KEY` must remain stable for the lifetime of the encrypted data. If the key changes or is lost, previously encrypted `records.count` values cannot be decrypted. Store it outside the repository and outside the SQLite database itself; a database backup alone is not enough to restore encrypted record data without the same key.
 
 ## 2. Example systemd unit
 
